@@ -9,6 +9,7 @@ import Contracts from './pages/Contracts';
 import Consultants from './pages/Consultants';
 import Billing from './pages/Billing';
 import Partners from './pages/Partners';
+import Clients from './pages/Clients';
 import Login from './pages/Login';
 
 // Componente para proteger rotas que requerem autenticação
@@ -35,6 +36,7 @@ function App() {
           <Route path="consultants" element={<Consultants />} />
           <Route path="billing" element={<Billing />} />
           <Route path="partners" element={<Partners />} />
+          <Route path="clients" element={<Clients />} />
         </Route>
       </Routes>
     </Router>

@@ -10,6 +10,7 @@ import {
   Users,
   DollarSign,
   Building2,
+  UserCircle,
   LogOut 
 } from 'lucide-react';
 import { UserRole } from '@/types';
@@ -24,11 +25,14 @@ export default function Layout() {
     navigate('/login');
   };
 
-  // Verificar se o usuário é admin global
+  // Verificar se o usuário é admin
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
   // Comparar com o valor do enum (string)
   const isAdminGlobal = user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global';
+  const isAdmin = isAdminGlobal || 
+                  user?.role === UserRole.ADMIN_PARTNER || 
+                  user?.role === 'admin_partner';
 
   const navigation = [
     {
@@ -51,6 +55,16 @@ export default function Layout() {
       href: '/billing',
       icon: DollarSign,
     },
+    // Apenas admin pode ver clientes
+    ...(isAdmin
+      ? [
+          {
+            name: 'Clientes',
+            href: '/clients',
+            icon: UserCircle,
+          },
+        ]
+      : []),
     // Apenas admin global pode ver parceiros
     ...(isAdminGlobal
       ? [

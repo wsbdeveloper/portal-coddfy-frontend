@@ -36,6 +36,7 @@ export default function CreateContractDialog({
 }: CreateContractDialogProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingClients, setLoadingClients] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     client_id: '',
@@ -52,10 +53,21 @@ export default function CreateContractDialog({
 
   const fetchClients = async () => {
     try {
+      setLoadingClients(true);
       const response = await api.get('/clients');
-      setClients(response.data.clients);
+      // Trata diferentes formatos de resposta da API
+      if (Array.isArray(response.data)) {
+        setClients(response.data);
+      } else if (response.data?.clients) {
+        setClients(response.data.clients);
+      } else {
+        setClients([]);
+      }
     } catch (err) {
       console.error('Erro ao carregar clientes:', err);
+      setClients([]);
+    } finally {
+      setLoadingClients(false);
     }
   };
 
@@ -64,9 +76,17 @@ export default function CreateContractDialog({
     setLoading(true);
 
     try {
+      // Valida se o valor total é válido
+      const totalValue = parseFloat(formData.total_value);
+      if (isNaN(totalValue) || totalValue < 0) {
+        alert('Por favor, insira um valor total válido maior ou igual a zero.');
+        setLoading(false);
+        return;
+      }
+
       await api.post('/contracts', {
         ...formData,
-        total_value: parseFloat(formData.total_value),
+        total_value: totalValue,
         end_date: new Date(formData.end_date).toISOString(),
       });
 
@@ -120,16 +140,27 @@ export default function CreateContractDialog({
                   setFormData({ ...formData, client_id: value })
                 }
                 required
+                disabled={loadingClients}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um cliente" />
+                  <SelectValue 
+                    placeholder={
+                      loadingClients 
+                        ? "Carregando clientes..." 
+                        : clients.length === 0 
+                        ? "Nenhum cliente disponível" 
+                        : "Selecione um cliente"
+                    } 
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+                  {!loadingClients && clients.length > 0 && (
+                    clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
