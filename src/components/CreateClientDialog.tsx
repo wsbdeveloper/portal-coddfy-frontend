@@ -45,11 +45,19 @@ export default function CreateClientDialog({
       // Tentar obter o partner_id do usuário logado como padrão
       const userStr = localStorage.getItem('user');
       if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user.partner_id) {
-          setPartner_id(user.partner_id);
+        try {
+          const user = JSON.parse(userStr);
+          if (user.partner_id) {
+            setPartner_id(user.partner_id);
+          }
+        } catch (e) {
+          console.error('Erro ao parsear usuário:', e);
         }
       }
+    } else {
+      // Resetar quando o diálogo fechar
+      setName('');
+      setPartner_id('');
     }
   }, [open]);
 
@@ -64,12 +72,28 @@ export default function CreateClientDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação adicional
+    if (!partner_id || partner_id.trim() === '') {
+      alert('Por favor, selecione um parceiro.');
+      return;
+    }
+    
     setLoading(true);
 
     try {
+      // Garantir que partner_id seja uma string válida
+      const partnerIdValue = partner_id && partner_id.trim() ? partner_id.trim() : null;
+      
+      if (!partnerIdValue) {
+        alert('Por favor, selecione um parceiro.');
+        setLoading(false);
+        return;
+      }
+      
       await api.post('/clients', {
         name: name.trim(),
-        partner_id: partner_id || null,
+        partner_id: partnerIdValue,
       });
 
       // Resetar formulário
@@ -111,19 +135,27 @@ export default function CreateClientDialog({
             <div className="grid gap-2">
               <Label htmlFor="partner_id">Parceiro *</Label>
               <Select
-                value={partner_id}
-                onValueChange={(value) => setPartner_id(value)}
+                value={partner_id || undefined}
+                onValueChange={(value) => {
+                  setPartner_id(value);
+                }}
                 required
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um parceiro" />
                 </SelectTrigger>
                 <SelectContent>
-                  {partners.map((partner) => (
-                    <SelectItem key={partner.id} value={partner.id}>
-                      {partner.name}
-                    </SelectItem>
-                  ))}
+                  {partners.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      Nenhum parceiro disponível
+                    </div>
+                  ) : (
+                    partners.map((partner) => (
+                      <SelectItem key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
