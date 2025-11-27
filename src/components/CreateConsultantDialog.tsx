@@ -51,16 +51,24 @@ export default function CreateConsultantDialog({
       fetchPartners();
       // Tentar obter o partner_id do usuário logado como padrão
       const userStr = localStorage.getItem('user');
+      let defaultPartnerId = '';
       if (userStr) {
         try {
           const user = JSON.parse(userStr);
-          if (user.partner_id) {
-            setFormData(prev => ({ ...prev, partner_id: user.partner_id }));
+          if (user.partner_id && user.partner_id.trim()) {
+            defaultPartnerId = user.partner_id.trim();
           }
         } catch (e) {
           console.error('Erro ao parsear usuário:', e);
         }
       }
+      setFormData({
+        name: '',
+        role: '',
+        contract_id: '',
+        partner_id: defaultPartnerId,
+        feedback: '85',
+      });
     } else {
       // Resetar quando o diálogo fechar
       setFormData({
@@ -96,17 +104,46 @@ export default function CreateConsultantDialog({
     setLoading(true);
 
     try {
-      // Validação adicional
-      if (!formData.partner_id || formData.partner_id.trim() === '') {
+      // Validação rigorosa do partner_id
+      let partnerIdValue: string | null = null;
+      
+      if (formData.partner_id) {
+        const trimmed = formData.partner_id.trim();
+        if (trimmed && trimmed.length > 0) {
+          partnerIdValue = trimmed;
+        }
+      }
+      
+      if (!partnerIdValue) {
         alert('Por favor, selecione um parceiro.');
         setLoading(false);
         return;
       }
 
-      await api.post('/consultants', {
-        ...formData,
+      // Garantir que todos os campos obrigatórios estão preenchidos
+      if (!formData.name.trim() || !formData.role.trim() || !formData.contract_id.trim()) {
+        alert('Por favor, preencha todos os campos obrigatórios.');
+        setLoading(false);
+        return;
+      }
+
+      // Preparar dados para envio - garantir que partner_id seja sempre uma string válida
+      const payload = {
+        name: formData.name.trim(),
+        role: formData.role.trim(),
+        contract_id: formData.contract_id.trim(),
+        partner_id: partnerIdValue, // Sempre será uma string válida não vazia
         feedback: parseInt(formData.feedback),
-      });
+      };
+
+      // Validação final antes de enviar
+      if (!payload.partner_id || payload.partner_id.length === 0) {
+        alert('Erro: Parceiro não selecionado. Por favor, selecione um parceiro.');
+        setLoading(false);
+        return;
+      }
+
+      await api.post('/consultants', payload);
 
       // Resetar formulário
       setFormData({
@@ -166,10 +203,12 @@ export default function CreateConsultantDialog({
             <div className="grid gap-2">
               <Label htmlFor="partner_id">Parceiro *</Label>
               <Select
-                value={formData.partner_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, partner_id: value })
-                }
+                value={formData.partner_id || undefined}
+                onValueChange={(value) => {
+                  if (value && value.trim()) {
+                    setFormData({ ...formData, partner_id: value.trim() });
+                  }
+                }}
                 required
               >
                 <SelectTrigger>
