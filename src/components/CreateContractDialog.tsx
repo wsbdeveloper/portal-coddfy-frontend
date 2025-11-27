@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Client } from '@/types';
 import api from '@/lib/api';
+import { formatCurrencyInput, unformatCurrency, formatDateInput, parseDateToISO } from '@/lib/format';
 
 interface CreateContractDialogProps {
   open: boolean;
@@ -76,10 +77,20 @@ export default function CreateContractDialog({
     setLoading(true);
 
     try {
-      // Valida se o valor total é válido
-      const totalValue = parseFloat(formData.total_value);
-      if (isNaN(totalValue) || totalValue < 0) {
-        alert('Por favor, insira um valor total válido maior ou igual a zero.');
+      // Converte o valor formatado para número
+      const totalValue = unformatCurrency(formData.total_value);
+      if (totalValue <= 0) {
+        alert('Por favor, insira um valor total válido maior que zero.');
+        setLoading(false);
+        return;
+      }
+
+      // Converte a data do formato dd/mm/yyyy para ISO
+      let endDateISO: string;
+      try {
+        endDateISO = parseDateToISO(formData.end_date);
+      } catch (err: any) {
+        alert('Por favor, insira uma data de vencimento válida no formato dd/mm/yyyy.');
         setLoading(false);
         return;
       }
@@ -87,7 +98,7 @@ export default function CreateContractDialog({
       await api.post('/contracts', {
         ...formData,
         total_value: totalValue,
-        end_date: new Date(formData.end_date).toISOString(),
+        end_date: endDateISO,
       });
 
       // Resetar formulário
@@ -169,13 +180,13 @@ export default function CreateContractDialog({
               <Label htmlFor="total_value">Valor Total (R$) *</Label>
               <Input
                 id="total_value"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
+                type="text"
+                placeholder="R$ 0,00"
                 value={formData.total_value}
-                onChange={(e) =>
-                  setFormData({ ...formData, total_value: e.target.value })
-                }
+                onChange={(e) => {
+                  const formatted = formatCurrencyInput(e.target.value);
+                  setFormData({ ...formData, total_value: formatted });
+                }}
                 required
               />
             </div>
@@ -200,14 +211,17 @@ export default function CreateContractDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="end_date">Data de Vencimento *</Label>
+              <Label htmlFor="end_date">Data de Vencimento (dd/mm/yyyy) *</Label>
               <Input
                 id="end_date"
-                type="date"
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
                 value={formData.end_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_date: e.target.value })
-                }
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setFormData({ ...formData, end_date: formatted });
+                }}
                 required
               />
             </div>

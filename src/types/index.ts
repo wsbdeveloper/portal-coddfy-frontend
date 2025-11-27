@@ -28,6 +28,8 @@ export interface User {
 export interface Client {
   id: string;
   name: string;
+  partner_id?: string | null;
+  partner?: Partner;
   created_at: string;
   updated_at: string;
 }

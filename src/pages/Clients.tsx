@@ -144,6 +144,9 @@ export default function Clients() {
                     <div>
                       <div className="font-semibold">{client.name}</div>
                       <div className="text-sm text-muted-foreground">
+                        {client.partner ? `Parceiro: ${client.partner.name}` : client.partner_id ? `Parceiro ID: ${client.partner_id}` : 'Sem parceiro associado'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
                         Criado em {new Date(client.created_at).toLocaleDateString('pt-BR')}
                       </div>
                     </div>

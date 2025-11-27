@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Contract } from '@/types';
+import { Contract, Partner } from '@/types';
 import api from '@/lib/api';
 
 interface CreateConsultantDialogProps {
@@ -35,17 +35,41 @@ export default function CreateConsultantDialog({
   onSuccess,
 }: CreateConsultantDialogProps) {
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     role: '',
     contract_id: '',
+    partner_id: '',
     feedback: '85',
   });
 
   useEffect(() => {
     if (open) {
       fetchContracts();
+      fetchPartners();
+      // Tentar obter o partner_id do usuário logado como padrão
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user.partner_id) {
+            setFormData(prev => ({ ...prev, partner_id: user.partner_id }));
+          }
+        } catch (e) {
+          console.error('Erro ao parsear usuário:', e);
+        }
+      }
+    } else {
+      // Resetar quando o diálogo fechar
+      setFormData({
+        name: '',
+        role: '',
+        contract_id: '',
+        partner_id: '',
+        feedback: '85',
+      });
     }
   }, [open]);
 
@@ -58,11 +82,27 @@ export default function CreateConsultantDialog({
     }
   };
 
+  const fetchPartners = async () => {
+    try {
+      const response = await api.get('/partners');
+      setPartners(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Erro ao carregar parceiros:', err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Validação adicional
+      if (!formData.partner_id || formData.partner_id.trim() === '') {
+        alert('Por favor, selecione um parceiro.');
+        setLoading(false);
+        return;
+      }
+
       await api.post('/consultants', {
         ...formData,
         feedback: parseInt(formData.feedback),
@@ -73,6 +113,7 @@ export default function CreateConsultantDialog({
         name: '',
         role: '',
         contract_id: '',
+        partner_id: '',
         feedback: '85',
       });
 
@@ -120,6 +161,34 @@ export default function CreateConsultantDialog({
                 }
                 required
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="partner_id">Parceiro *</Label>
+              <Select
+                value={formData.partner_id}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, partner_id: value })
+                }
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um parceiro" />
+                </SelectTrigger>
+                <SelectContent>
+                  {partners.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      Nenhum parceiro disponível
+                    </div>
+                  ) : (
+                    partners.map((partner) => (
+                      <SelectItem key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid gap-2">
@@ -178,7 +247,7 @@ export default function CreateConsultantDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !formData.partner_id}>
               {loading ? 'Criando...' : 'Criar Consultor'}
             </Button>
           </DialogFooter>
