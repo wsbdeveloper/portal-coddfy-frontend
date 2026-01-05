@@ -74,7 +74,7 @@ export default function Billing() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
-  const [overdueData, setOverdueData] = useState<any[]>([]);
+  const [overdueData] = useState<any[]>([]);
   const [showOverdue, setShowOverdue] = useState(false);
 
   // Verificar se é cliente

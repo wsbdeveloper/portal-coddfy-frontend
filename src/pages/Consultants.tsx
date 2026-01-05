@@ -14,7 +14,6 @@ import CreateConsultantDialog from '@/components/CreateConsultantDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 
 export default function Consultants() {
   const [groups, setGroups] = useState<ConsultantGroup[]>([]);
@@ -23,9 +22,8 @@ export default function Consultants() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
-  const [selectedConsultant, setSelectedConsultant] = useState<string | null>(null);
+  const [selectedConsultantId, setSelectedConsultantId] = useState<string | null>(null);
   const [feedbackValue, setFeedbackValue] = useState('85');
-  const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
 
   // Verificar se é cliente
   const userStr = localStorage.getItem('user');
@@ -127,7 +125,7 @@ export default function Consultants() {
               variant="outline"
               onClick={() => {
                 setFeedbackDialogOpen(false);
-                setSelectedConsultant(null);
+                setSelectedConsultantId(null);
                 setFeedbackValue('85');
               }}
             >
@@ -137,12 +135,14 @@ export default function Consultants() {
               onClick={async () => {
                 try {
                   // Aqui você faria a chamada à API para criar o feedback
-                  // await api.post(`/consultants/${selectedConsultant}/feedback`, { feedback: parseInt(feedbackValue) });
-                  alert('Feedback criado com sucesso!');
-                  setFeedbackDialogOpen(false);
-                  setSelectedConsultant(null);
-                  setFeedbackValue('85');
-                  fetchConsultants();
+                  if (selectedConsultantId) {
+                    // await api.post(`/consultants/${selectedConsultantId}/feedback`, { feedback: parseInt(feedbackValue) });
+                    alert('Feedback criado com sucesso!');
+                    setFeedbackDialogOpen(false);
+                    setSelectedConsultantId(null);
+                    setFeedbackValue('85');
+                    fetchConsultants();
+                  }
                 } catch (err: any) {
                   alert(err.response?.data?.error || 'Erro ao criar feedback');
                 }
@@ -251,7 +251,7 @@ export default function Consultants() {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedConsultant(consultant.id);
+                                  setSelectedConsultantId(consultant.id);
                                   setFeedbackDialogOpen(true);
                                 }}
                               >
