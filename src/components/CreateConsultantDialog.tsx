@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Contract, Partner } from '@/types';
+import { Contract, Client } from '@/types';
 import api from '@/lib/api';
 
 interface CreateConsultantDialogProps {
@@ -34,40 +34,25 @@ export default function CreateConsultantDialog({
   onOpenChange,
   onSuccess,
 }: CreateConsultantDialogProps) {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const [allContracts, setAllContracts] = useState<Contract[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     role: '',
     contract_id: '',
-    partner_id: '',
-    feedback: '85',
+    client_id: '',
   });
 
   useEffect(() => {
     if (open) {
       fetchContracts();
-      fetchPartners();
-      // Tentar obter o partner_id do usuário logado como padrão
-      const userStr = localStorage.getItem('user');
-      let defaultPartnerId = '';
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          if (user.partner_id && user.partner_id.trim()) {
-            defaultPartnerId = user.partner_id.trim();
-          }
-        } catch (e) {
-          console.error('Erro ao parsear usuário:', e);
-        }
-      }
+      fetchClients();
       setFormData({
         name: '',
         role: '',
         contract_id: '',
-        partner_id: defaultPartnerId,
-        feedback: '85',
+        client_id: '',
       });
     } else {
       // Resetar quando o diálogo fechar
@@ -75,27 +60,39 @@ export default function CreateConsultantDialog({
         name: '',
         role: '',
         contract_id: '',
-        partner_id: '',
-        feedback: '85',
+        client_id: '',
       });
     }
   }, [open]);
 
+  // Filtrar contratos baseado no cliente selecionado
+  const filteredContracts = formData.client_id
+    ? allContracts.filter((contract) => contract.client_id === formData.client_id)
+    : [];
+
   const fetchContracts = async () => {
     try {
       const response = await api.get('/contracts?status=ativo');
-      setContracts(response.data.contracts);
+      setAllContracts(response.data.contracts);
     } catch (err) {
       console.error('Erro ao carregar contratos:', err);
     }
   };
 
-  const fetchPartners = async () => {
+  const fetchClients = async () => {
     try {
-      const response = await api.get('/partners');
-      setPartners(Array.isArray(response.data) ? response.data : []);
+      const response = await api.get('/clients');
+      // Trata diferentes formatos de resposta da API
+      if (Array.isArray(response.data)) {
+        setClients(response.data);
+      } else if (response.data?.clients) {
+        setClients(response.data.clients);
+      } else {
+        setClients([]);
+      }
     } catch (err) {
-      console.error('Erro ao carregar parceiros:', err);
+      console.error('Erro ao carregar clientes:', err);
+      setClients([]);
     }
   };
 
@@ -104,44 +101,20 @@ export default function CreateConsultantDialog({
     setLoading(true);
 
     try {
-      // Validação rigorosa do partner_id
-      let partnerIdValue: string | null = null;
-      
-      if (formData.partner_id) {
-        const trimmed = formData.partner_id.trim();
-        if (trimmed && trimmed.length > 0) {
-          partnerIdValue = trimmed;
-        }
-      }
-      
-      if (!partnerIdValue) {
-        alert('Por favor, selecione um parceiro.');
-        setLoading(false);
-        return;
-      }
-
       // Garantir que todos os campos obrigatórios estão preenchidos
-      if (!formData.name.trim() || !formData.role.trim() || !formData.contract_id.trim()) {
+      if (!formData.name.trim() || !formData.role.trim() || !formData.contract_id.trim() || !formData.client_id.trim()) {
         alert('Por favor, preencha todos os campos obrigatórios.');
         setLoading(false);
         return;
       }
 
-      // Preparar dados para envio - garantir que partner_id seja sempre uma string válida
+      // Preparar dados para envio
       const payload = {
         name: formData.name.trim(),
         role: formData.role.trim(),
         contract_id: formData.contract_id.trim(),
-        partner_id: partnerIdValue, // Sempre será uma string válida não vazia
-        feedback: parseInt(formData.feedback),
+        client_id: formData.client_id.trim(),
       };
-
-      // Validação final antes de enviar
-      if (!payload.partner_id || payload.partner_id.length === 0) {
-        alert('Erro: Parceiro não selecionado. Por favor, selecione um parceiro.');
-        setLoading(false);
-        return;
-      }
 
       await api.post('/consultants', payload);
 
@@ -150,8 +123,7 @@ export default function CreateConsultantDialog({
         name: '',
         role: '',
         contract_id: '',
-        partner_id: '',
-        feedback: '85',
+        client_id: '',
       });
 
       onSuccess();
@@ -201,28 +173,32 @@ export default function CreateConsultantDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="partner_id">Parceiro *</Label>
+              <Label htmlFor="client_id">Cliente *</Label>
               <Select
-                value={formData.partner_id || undefined}
+                value={formData.client_id || undefined}
                 onValueChange={(value) => {
                   if (value && value.trim()) {
-                    setFormData({ ...formData, partner_id: value.trim() });
+                    setFormData({ 
+                      ...formData, 
+                      client_id: value.trim(),
+                      contract_id: '', // Resetar contrato quando mudar cliente
+                    });
                   }
                 }}
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um parceiro" />
+                  <SelectValue placeholder="Selecione um cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {partners.length === 0 ? (
+                  {clients.length === 0 ? (
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                      Nenhum parceiro disponível
+                      Nenhum cliente disponível
                     </div>
                   ) : (
-                    partners.map((partner) => (
-                      <SelectItem key={partner.id} value={partner.id}>
-                        {partner.name}
+                    clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
                       </SelectItem>
                     ))
                   )}
@@ -238,42 +214,31 @@ export default function CreateConsultantDialog({
                   setFormData({ ...formData, contract_id: value })
                 }
                 required
+                disabled={!formData.client_id}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um contrato" />
+                  <SelectValue placeholder={
+                    formData.client_id 
+                      ? "Selecione um contrato" 
+                      : "Selecione um cliente primeiro"
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {contracts.map((contract) => (
-                    <SelectItem key={contract.id} value={contract.id}>
-                      {contract.name} ({contract.client?.name})
-                    </SelectItem>
-                  ))}
+                  {filteredContracts.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      {formData.client_id 
+                        ? "Nenhum contrato disponível para este cliente"
+                        : "Selecione um cliente primeiro"}
+                    </div>
+                  ) : (
+                    filteredContracts.map((contract) => (
+                      <SelectItem key={contract.id} value={contract.id}>
+                        {contract.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="feedback">
-                Feedback de Performance (0-100) *
-              </Label>
-              <Input
-                id="feedback"
-                type="number"
-                min="0"
-                max="100"
-                value={formData.feedback}
-                onChange={(e) =>
-                  setFormData({ ...formData, feedback: e.target.value })
-                }
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                {parseInt(formData.feedback) >= 90
-                  ? '🟢 Excelente'
-                  : parseInt(formData.feedback) >= 80
-                  ? '🟠 Bom'
-                  : '🔴 Precisa melhorar'}
-              </p>
             </div>
           </div>
 
@@ -286,7 +251,7 @@ export default function CreateConsultantDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !formData.partner_id}>
+            <Button type="submit" disabled={loading || !formData.client_id || !formData.contract_id}>
               {loading ? 'Criando...' : 'Criar Consultor'}
             </Button>
           </DialogFooter>

@@ -45,15 +45,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-blue-900 relative">
+      {/* Logo acima do login */}
+      <div className="absolute top-8 flex items-center justify-center w-full">
+        <div className="flex items-center gap-2">
+          <FileText className="h-10 w-10 text-white" />
+          <span className="text-3xl font-bold text-white">CCM</span>
+        </div>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center gap-2">
-              <FileText className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">CCM</span>
-            </div>
-          </div>
           <CardTitle className="text-center text-2xl">Bem-vindo</CardTitle>
           <CardDescription className="text-center">
             Faça login para acessar o sistema de gestão de contratos
@@ -104,6 +106,11 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Copyright no canto inferior */}
+      <div className="absolute bottom-4 text-center text-sm text-blue-200">
+        <p>© {new Date().getFullYear()} Coddfy Contracts Manager. Todos os direitos reservados.</p>
+      </div>
     </div>
   );
 }

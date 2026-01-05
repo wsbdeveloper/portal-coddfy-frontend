@@ -3,10 +3,11 @@
  * Exibe visão geral consolidada dos contratos e consultores
  */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { DashboardData } from '@/types';
+import { DashboardData, UserRole } from '@/types';
 import api from '@/lib/api';
 import { 
   FileText, 
@@ -17,9 +18,18 @@ import {
 import { formatCurrency, formatDate } from '@/lib/format';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Verificar se é cliente (usuário que não é admin)
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isClient = user?.role !== UserRole.ADMIN_GLOBAL && 
+                   user?.role !== UserRole.ADMIN_PARTNER &&
+                   user?.role !== 'admin_global' &&
+                   user?.role !== 'admin_partner';
 
   useEffect(() => {
     fetchDashboardData();
@@ -68,7 +78,10 @@ export default function Dashboard() {
 
       {/* Cards de estatísticas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-accent transition-colors"
+          onClick={() => navigate('/contracts')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Contratos Ativos
@@ -83,7 +96,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-accent transition-colors"
+          onClick={() => navigate('/consultants')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Consultores Alocados
@@ -136,7 +152,10 @@ export default function Dashboard() {
       </div>
 
       {/* Resumo Financeiro */}
-      <Card>
+      <Card 
+        className="cursor-pointer hover:bg-accent transition-colors"
+        onClick={() => navigate('/billing')}
+      >
         <CardHeader>
           <CardTitle>Resumo Financeiro</CardTitle>
         </CardHeader>
@@ -150,26 +169,57 @@ export default function Dashboard() {
             </div>
             <Progress value={financial_summary.billed_percentage} />
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Valor Total</p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(parseFloat(financial_summary.total_value))}
-              </p>
+          {isClient ? (
+            // Visão Cliente - mantém layout original
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor Total</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(parseFloat(financial_summary.total_value))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Faturado</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(parseFloat(financial_summary.billed_value))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Saldo</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(parseFloat(financial_summary.balance))}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Faturado</p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(parseFloat(financial_summary.billed_value))}
-              </p>
+          ) : (
+            // Visão Interna - Faturado e pago, Pendente pagamento, A faturar
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor Total</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(parseFloat(financial_summary.total_value))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Faturado e Pago</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(parseFloat(financial_summary.billed_value))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pendente Pagamento</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatCurrency(parseFloat(financial_summary.balance))}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">A Faturar</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(parseFloat(financial_summary.total_value) - parseFloat(financial_summary.billed_value) - parseFloat(financial_summary.balance))}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Saldo</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {formatCurrency(parseFloat(financial_summary.balance))}
-              </p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 

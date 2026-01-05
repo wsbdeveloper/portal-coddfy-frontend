@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Contract } from '@/types';
 import api from '@/lib/api';
+import { formatDateInput, parseDateToISO } from '@/lib/format';
 
 interface CreateInstallmentDialogProps {
   open: boolean;
@@ -40,17 +41,30 @@ export default function CreateInstallmentDialog({
     contract_id: '',
     month: '',
     value: '',
-    billed: false,
+    invoice_number: '',
+    billing_date: '',
+    payment_term: '',
+    expected_payment_date: '',
+    payment_date: '',
   });
 
   useEffect(() => {
     if (open) {
       fetchContracts();
-      // Preenche com mês atual
+      // Preenche com mês atual e reseta outros campos
       const now = new Date();
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const currentMonth = `${monthNames[now.getMonth()]}/${now.getFullYear().toString().slice(-2)}`;
-      setFormData((prev) => ({ ...prev, month: currentMonth }));
+      setFormData({
+        contract_id: '',
+        month: currentMonth,
+        value: '',
+        invoice_number: '',
+        billing_date: '',
+        payment_term: '',
+        expected_payment_date: '',
+        payment_date: '',
+      });
     }
   }, [open]);
 
@@ -68,17 +82,63 @@ export default function CreateInstallmentDialog({
     setLoading(true);
 
     try {
-      await api.post('/installments', {
-        ...formData,
+      // Converter datas para ISO se preenchidas
+      const payload: any = {
+        contract_id: formData.contract_id,
+        month: formData.month,
         value: parseFloat(formData.value),
-      });
+      };
+
+      if (formData.invoice_number) {
+        payload.invoice_number = formData.invoice_number.trim();
+      }
+      if (formData.billing_date) {
+        try {
+          payload.billing_date = parseDateToISO(formData.billing_date);
+        } catch (err: any) {
+          alert('Por favor, insira uma data de faturamento válida no formato dd/mm/yyyy.');
+          setLoading(false);
+          return;
+        }
+      }
+      if (formData.payment_term) {
+        payload.payment_term = formData.payment_term.trim();
+      }
+      if (formData.expected_payment_date) {
+        try {
+          payload.expected_payment_date = parseDateToISO(formData.expected_payment_date);
+        } catch (err: any) {
+          alert('Por favor, insira uma data prevista de pagamento válida no formato dd/mm/yyyy.');
+          setLoading(false);
+          return;
+        }
+      }
+      if (formData.payment_date) {
+        try {
+          payload.payment_date = parseDateToISO(formData.payment_date);
+        } catch (err: any) {
+          alert('Por favor, insira uma data de pagamento válida no formato dd/mm/yyyy.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      await api.post('/installments', payload);
 
       // Resetar formulário
+      const now = new Date();
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const currentMonth = `${monthNames[now.getMonth()]}/${now.getFullYear().toString().slice(-2)}`;
+      
       setFormData({
         contract_id: '',
-        month: '',
+        month: currentMonth,
         value: '',
-        billed: false,
+        invoice_number: '',
+        billing_date: '',
+        payment_term: '',
+        expected_payment_date: '',
+        payment_date: '',
       });
 
       onSuccess();
@@ -177,19 +237,73 @@ export default function CreateInstallmentDialog({
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="billed"
-                checked={formData.billed}
+            <div className="grid gap-2">
+              <Label htmlFor="invoice_number">Número da Nota Fiscal</Label>
+              <Input
+                id="invoice_number"
+                placeholder="Ex: 123456"
+                value={formData.invoice_number}
                 onChange={(e) =>
-                  setFormData({ ...formData, billed: e.target.checked })
+                  setFormData({ ...formData, invoice_number: e.target.value })
                 }
-                className="h-4 w-4 rounded border-gray-300"
               />
-              <Label htmlFor="billed" className="cursor-pointer">
-                Marcar como já faturado/pago
-              </Label>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="billing_date">Data de Faturamento (dd/mm/yyyy)</Label>
+              <Input
+                id="billing_date"
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={formData.billing_date}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setFormData({ ...formData, billing_date: formatted });
+                }}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="payment_term">Prazo de Pagamento</Label>
+              <Input
+                id="payment_term"
+                placeholder="Ex: 30 dias"
+                value={formData.payment_term}
+                onChange={(e) =>
+                  setFormData({ ...formData, payment_term: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="expected_payment_date">Data Prevista do Pagamento (dd/mm/yyyy)</Label>
+              <Input
+                id="expected_payment_date"
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={formData.expected_payment_date}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setFormData({ ...formData, expected_payment_date: formatted });
+                }}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="payment_date">Data do Pagamento (dd/mm/yyyy)</Label>
+              <Input
+                id="payment_date"
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={formData.payment_date}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setFormData({ ...formData, payment_date: formatted });
+                }}
+              />
             </div>
           </div>
 

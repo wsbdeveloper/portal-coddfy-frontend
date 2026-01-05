@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Partner } from '@/types';
 import api from '@/lib/api';
 
 interface CreateClientDialogProps {
@@ -34,71 +33,50 @@ export default function CreateClientDialog({
   onOpenChange,
   onSuccess,
 }: CreateClientDialogProps) {
-  const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
-  const [partner_id, setPartner_id] = useState('');
+  const [cnpj, setCnpj] = useState('');
+  const [corporate_name, setCorporate_name] = useState('');
 
   useEffect(() => {
     if (open) {
-      fetchPartners();
-      // Tentar obter o partner_id do usuário logado como padrão
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          if (user.partner_id) {
-            setPartner_id(user.partner_id);
-          }
-        } catch (e) {
-          console.error('Erro ao parsear usuário:', e);
-        }
-      }
-    } else {
-      // Resetar quando o diálogo fechar
+      // Resetar quando o diálogo abrir
       setName('');
-      setPartner_id('');
+      setCnpj('');
+      setCorporate_name('');
     }
   }, [open]);
 
-  const fetchPartners = async () => {
-    try {
-      const response = await api.get('/partners');
-      setPartners(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Erro ao carregar parceiros:', err);
+  const formatCNPJ = (value: string) => {
+    // Remove tudo que não é dígito
+    const numbers = value.replace(/\D/g, '');
+    // Aplica a máscara XX.XXX.XXX/XXXX-XX
+    if (numbers.length <= 14) {
+      return numbers
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
     }
+    return value;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação adicional
-    if (!partner_id || partner_id.trim() === '') {
-      alert('Por favor, selecione um parceiro.');
-      return;
-    }
-    
     setLoading(true);
 
     try {
-      // Garantir que partner_id seja uma string válida
-      const partnerIdValue = partner_id && partner_id.trim() ? partner_id.trim() : null;
-      
-      if (!partnerIdValue) {
-        alert('Por favor, selecione um parceiro.');
-        setLoading(false);
-        return;
-      }
-      
       await api.post('/clients', {
         name: name.trim(),
-        partner_id: partnerIdValue,
+        cnpj: cnpj.replace(/\D/g, ''), // Envia apenas números
+        corporate_name: corporate_name.trim(),
       });
 
       // Resetar formulário
       setName('');
-      setPartner_id('');
+      setCnpj('');
+      setCorporate_name('');
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -133,31 +111,24 @@ export default function CreateClientDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="partner_id">Parceiro *</Label>
-              <Select
-                value={partner_id || undefined}
-                onValueChange={(value) => {
-                  setPartner_id(value);
-                }}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um parceiro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {partners.length === 0 ? (
-                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                      Nenhum parceiro disponível
-                    </div>
-                  ) : (
-                    partners.map((partner) => (
-                      <SelectItem key={partner.id} value={partner.id}>
-                        {partner.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="cnpj">CNPJ</Label>
+              <Input
+                id="cnpj"
+                value={cnpj}
+                onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                placeholder="00.000.000/0000-00"
+                maxLength={18}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="corporate_name">Razão Social</Label>
+              <Input
+                id="corporate_name"
+                value={corporate_name}
+                onChange={(e) => setCorporate_name(e.target.value)}
+                placeholder="Ex: Empresa ABC Ltda"
+                maxLength={255}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -169,7 +140,7 @@ export default function CreateClientDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !name.trim() || !partner_id}>
+            <Button type="submit" disabled={loading || !name.trim()}>
               {loading ? 'Criando...' : 'Criar Cliente'}
             </Button>
           </DialogFooter>

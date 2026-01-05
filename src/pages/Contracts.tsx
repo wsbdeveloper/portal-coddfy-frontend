@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Contract, ContractStatus } from '@/types';
+import { Contract, ContractStatus, UserRole } from '@/types';
 import api from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import CreateContractDialog from '@/components/CreateContractDialog';
 
 export default function Contracts() {
@@ -18,6 +18,15 @@ export default function Contracts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+
+  // Verificar se é cliente
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isClient = user?.role !== UserRole.ADMIN_GLOBAL && 
+                   user?.role !== UserRole.ADMIN_PARTNER &&
+                   user?.role !== 'admin_global' &&
+                   user?.role !== 'admin_partner';
 
   useEffect(() => {
     fetchContracts();
@@ -82,10 +91,12 @@ export default function Contracts() {
             Gerencie os contratos de consultoria
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Contrato
-        </Button>
+        {!isClient && (
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Contrato
+          </Button>
+        )}
       </div>
 
       <CreateContractDialog
@@ -95,22 +106,41 @@ export default function Contracts() {
       />
 
       <div className="grid gap-4">
-        {contracts.map((contract) => (
-          <Card key={contract.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <CardTitle className="text-xl">{contract.name}</CardTitle>
+        {contracts.map((contract) => {
+          const isExpanded = expandedContract === contract.id;
+          return (
+            <Card key={contract.id}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <CardTitle 
+                        className="text-xl cursor-pointer hover:text-primary"
+                        onClick={() => setExpandedContract(isExpanded ? null : contract.id)}
+                      >
+                        {contract.name}
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setExpandedContract(isExpanded ? null : contract.id)}
+                        className="h-6 w-6 p-0"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Cliente: {contract.client?.name}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Cliente: {contract.client?.name}
-                  </p>
+                  {getStatusBadge(contract.status)}
                 </div>
-                {getStatusBadge(contract.status)}
-              </div>
-            </CardHeader>
+              </CardHeader>
             <CardContent className="space-y-4">
               {/* Barra de progresso */}
               <div className="space-y-2">
@@ -175,9 +205,52 @@ export default function Contracts() {
                   </div>
                 </div>
               )}
+
+              {/* Histórico de Faturamentos (expansão) */}
+              {isExpanded && (
+                <div className="pt-4 border-t">
+                  <p className="text-sm font-medium mb-4">Histórico de Faturamentos</p>
+                  <div className="space-y-3">
+                    {contract.installments && contract.installments.length > 0 ? (
+                      contract.installments.map((installment) => (
+                        <Card key={installment.id} className="bg-muted/50">
+                          <CardContent className="pt-4">
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Mês</p>
+                                <p className="font-medium">{installment.month}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Valor</p>
+                                <p className="font-medium">
+                                  {formatCurrency(parseFloat(installment.value))}
+                                </p>
+                              </div>
+                              <div className="md:col-span-2">
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Timesheet validado com cliente
+                                </p>
+                                <p className="text-sm text-muted-foreground italic">
+                                  {/* Placeholder - será preenchido quando a API retornar os dados */}
+                                  Informações de timesheet serão exibidas aqui quando disponíveis
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhum histórico de faturamento disponível
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {contracts.length === 0 && (
@@ -187,10 +260,12 @@ export default function Contracts() {
             <p className="text-lg text-muted-foreground">
               Nenhum contrato cadastrado
             </p>
-            <Button className="mt-4">
-              <Plus className="mr-2 h-4 w-4" />
-              Criar Primeiro Contrato
-            </Button>
+            {!isClient && (
+              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Criar Primeiro Contrato
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

@@ -41,6 +41,8 @@ export default function CreateContractDialog({
   const [formData, setFormData] = useState({
     name: '',
     client_id: '',
+    responsible_name: '',
+    payment_method: '',
     total_value: '',
     status: 'ativo',
     end_date: '',
@@ -105,6 +107,8 @@ export default function CreateContractDialog({
       setFormData({
         name: '',
         client_id: '',
+        responsible_name: '',
+        payment_method: '',
         total_value: '',
         status: 'ativo',
         end_date: '',
@@ -172,6 +176,38 @@ export default function CreateContractDialog({
                       </SelectItem>
                     ))
                   )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="responsible_name">Nome do Responsável *</Label>
+              <Input
+                id="responsible_name"
+                placeholder="Ex: João Silva"
+                value={formData.responsible_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, responsible_name: e.target.value })
+                }
+                required
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="payment_method">Forma de Pagamento *</Label>
+              <Select
+                value={formData.payment_method}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, payment_method: value })
+                }
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a forma de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="a_vista">À Vista</SelectItem>
+                  <SelectItem value="parcelado">Parcelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
