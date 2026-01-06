@@ -56,7 +56,7 @@ export default function Layout() {
       icon: DollarSign,
     },
     // Apenas admin pode ver clientes
-    ...(isAdmin
+    ...((user?.role === UserRole.ADMIN_GLOBAL || user?.role === UserRole.ADMIN_PARTNER || user?.role === 'admin_global' || user?.role === 'admin_partner')
       ? [
           {
             name: 'Clientes',
