@@ -30,9 +30,9 @@ export default function Layout() {
   const user = userStr ? JSON.parse(userStr) : null;
   // Comparar com o valor do enum (string)
   const isAdminGlobal = user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global';
-  const isAdmin = isAdminGlobal || 
+  /*const isAdmin = isAdminGlobal || 
                   user?.role === UserRole.ADMIN_PARTNER || 
-                  user?.role === 'admin_partner';
+                  user?.role === 'admin_partner';*/
 
   const navigation = [
     {
