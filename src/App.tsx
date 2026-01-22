@@ -11,7 +11,6 @@ import Billing from './pages/Billing';
 import Partners from './pages/Partners';
 import Clients from './pages/Clients';
 import Login from './pages/Login';
-
 // Componente para proteger rotas que requerem autenticação
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');

@@ -24,9 +24,7 @@ export default function Contracts() {
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
   const isClient = user?.role !== UserRole.ADMIN_GLOBAL && 
-                   user?.role !== UserRole.ADMIN_PARTNER &&
-                   user?.role !== 'admin_global' &&
-                   user?.role !== 'admin_partner';
+                   user?.role !== 'admin_global';
 
   useEffect(() => {
     fetchContracts();
@@ -98,12 +96,13 @@ export default function Contracts() {
           </Button>
         )}
       </div>
-
-      <CreateContractDialog
+      
+      {!isClient && (<CreateContractDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSuccess={fetchContracts}
-      />
+      />)}
+      
 
       <div className="grid gap-4">
         {contracts.map((contract) => {
@@ -136,6 +135,9 @@ export default function Contracts() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Cliente: {contract.client?.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Responsável: {contract.client?.name}
                     </p>
                   </div>
                   {getStatusBadge(contract.status)}

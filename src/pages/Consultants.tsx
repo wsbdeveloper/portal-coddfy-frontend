@@ -23,7 +23,11 @@ export default function Consultants() {
   const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [selectedConsultantId, setSelectedConsultantId] = useState<string | null>(null);
+  const [selectedConsultantName, setSelectedConsultantName] = useState<string>('');
   const [feedbackValue, setFeedbackValue] = useState('85');
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [contractName, setContractName] = useState<string>('');
 
   // Verificar se é cliente
   const userStr = localStorage.getItem('user');
@@ -92,14 +96,30 @@ export default function Consultants() {
 
       {/* Dialog de Feedback */}
       <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
             <DialogTitle>Criar Feedback</DialogTitle>
             <DialogDescription>
-              Avalie o desempenho do consultor (0-100)
+              Avalie o desempenho do consultor
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Informações do Contrato */}
+            {contractName && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-1">Contrato</p>
+                <p className="text-sm text-muted-foreground">{contractName}</p>
+              </div>
+            )}
+
+            {/* Informações do Consultor */}
+            {selectedConsultantName && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-1">Consultor</p>
+                <p className="text-sm text-muted-foreground">{selectedConsultantName}</p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="feedback">Nota de Performance (0-100) *</Label>
               <Input
@@ -119,6 +139,22 @@ export default function Consultants() {
                   : '🔴 Precisa melhorar'}
               </p>
             </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="comment">Comentário *</Label>
+              <textarea
+                id="comment"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Digite seu comentário sobre o desempenho do consultor..."
+                value={feedbackComment}
+                onChange={(e) => setFeedbackComment(e.target.value)}
+                required
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                Descreva o desempenho do consultor de forma detalhada
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -126,7 +162,11 @@ export default function Consultants() {
               onClick={() => {
                 setFeedbackDialogOpen(false);
                 setSelectedConsultantId(null);
+                setSelectedConsultantName('');
                 setFeedbackValue('85');
+                setFeedbackComment('');
+                setContractId(null);
+                setContractName('');
               }}
             >
               Cancelar
@@ -134,19 +174,33 @@ export default function Consultants() {
             <Button
               onClick={async () => {
                 try {
-                  // Aqui você faria a chamada à API para criar o feedback
-                  if (selectedConsultantId) {
-                    // await api.post(`/consultants/${selectedConsultantId}/feedback`, { feedback: parseInt(feedbackValue) });
+                  if (!feedbackComment.trim()) {
+                    alert('Por favor, preencha o comentário.');
+                    return;
+                  }
+                  
+                  if (selectedConsultantId && contractId) {
+                    await api.post(`/feedbacks/${selectedConsultantId}`, { 
+                      rating: parseInt(feedbackValue), 
+                      comment: feedbackComment.trim(), 
+                      consultant_id: selectedConsultantId,
+                      contract_id: contractId
+                    });
                     alert('Feedback criado com sucesso!');
                     setFeedbackDialogOpen(false);
                     setSelectedConsultantId(null);
+                    setSelectedConsultantName('');
                     setFeedbackValue('85');
+                    setFeedbackComment('');
+                    setContractId(null);
+                    setContractName('');
                     fetchConsultants();
                   }
                 } catch (err: any) {
                   alert(err.response?.data?.error || 'Erro ao criar feedback');
                 }
               }}
+              disabled={!feedbackComment.trim()}
             >
               Salvar Feedback
             </Button>
@@ -247,11 +301,15 @@ export default function Consultants() {
                         <div className="mt-2 p-4 border rounded-lg bg-muted/50">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-medium">Feedback de Performance</h4>
-                            {isClient && (
+                            {!isClient && (
                               <Button
                                 size="sm"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedConsultantId(consultant.id);
+                                  setSelectedConsultantName(consultant.name);
+                                  setContractId(group.contract_id);
+                                  setContractName(group.contract_name);
                                   setFeedbackDialogOpen(true);
                                 }}
                               >
