@@ -54,7 +54,6 @@ export default function Login() {
             alt="CCM Logo" 
             className="h-16 w-auto object-contain"
           />
-          <span className="text-3xl font-bold text-white">CCM</span>
         </div>
       </div>
 
