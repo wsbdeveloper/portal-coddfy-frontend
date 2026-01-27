@@ -64,11 +64,13 @@ export default function CreateUserDialog({
     setLoading(true);
 
     try {
-      await api.post('/users', {
+      // Usar endpoint /auth/register conforme PRD
+      // Garantir que role seja enviado como string
+      await api.post('/auth/register', {
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        role: formData.role,
+        role: String(formData.role), // Garantir que seja string
         partner_id: formData.partner_id || null,
       });
 
@@ -164,27 +166,29 @@ export default function CreateUserDialog({
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="partner_id">Parceiro *</Label>
-              <Select
-                value={formData.partner_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, partner_id: value })
-                }
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um parceiro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {partners.map((partner) => (
-                    <SelectItem key={partner.id} value={partner.id}>
-                      {partner.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {(formData.role === UserRole.ADMIN_PARTNER || formData.role === UserRole.USER_PARTNER) && (
+              <div className="grid gap-2">
+                <Label htmlFor="partner_id">Parceiro *</Label>
+                <Select
+                  value={formData.partner_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, partner_id: value })
+                  }
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um parceiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {partners.map((partner) => (
+                      <SelectItem key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -196,7 +200,15 @@ export default function CreateUserDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !formData.partner_id}>
+            <Button
+              type="submit"
+              disabled={
+                loading ||
+                ((formData.role === UserRole.ADMIN_PARTNER ||
+                  formData.role === UserRole.USER_PARTNER) &&
+                  !formData.partner_id)
+              }
+            >
               {loading ? 'Criando...' : 'Criar Usuário'}
             </Button>
           </DialogFooter>

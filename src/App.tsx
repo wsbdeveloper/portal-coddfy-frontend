@@ -10,6 +10,7 @@ import Consultants from './pages/Consultants';
 import Billing from './pages/Billing';
 import Partners from './pages/Partners';
 import Clients from './pages/Clients';
+import Management from './pages/Management';
 import Login from './pages/Login';
 // Componente para proteger rotas que requerem autenticação
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ function App() {
           <Route path="billing" element={<Billing />} />
           <Route path="partners" element={<Partners />} />
           <Route path="clients" element={<Clients />} />
+          <Route path="management" element={<Management />} />
         </Route>
       </Routes>
     </Router>

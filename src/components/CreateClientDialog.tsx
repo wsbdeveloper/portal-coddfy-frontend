@@ -13,6 +13,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Partner, UserRole } from '@/types';
 import api from '@/lib/api';
 
 interface CreateClientDialogProps {
@@ -27,18 +35,38 @@ export default function CreateClientDialog({
   onSuccess,
 }: CreateClientDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [name, setName] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [corporate_name, setCorporate_name] = useState('');
+  const [partner_id, setPartner_id] = useState('');
+
+  // Verificar se é Admin Global
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdminGlobal = user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global';
 
   useEffect(() => {
     if (open) {
+      if (isAdminGlobal) {
+        fetchPartners();
+      }
       // Resetar quando o diálogo abrir
       setName('');
       setCnpj('');
       setCorporate_name('');
+      setPartner_id('');
     }
-  }, [open]);
+  }, [open, isAdminGlobal]);
+
+  const fetchPartners = async () => {
+    try {
+      const response = await api.get('/partners');
+      setPartners(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Erro ao carregar parceiros:', err);
+    }
+  };
 
   const formatCNPJ = (value: string) => {
     // Remove tudo que não é dígito
@@ -60,16 +88,29 @@ export default function CreateClientDialog({
     setLoading(true);
 
     try {
-      await api.post('/clients', {
+      const payload: any = {
         name: name.trim(),
         cnpj: cnpj.replace(/\D/g, ''), // Envia apenas números
-        corporate_name: corporate_name.trim(),
-      });
+        razao_social: corporate_name.trim(),
+      };
+
+      // Se for Admin Global, partner_id é obrigatório conforme PRD
+      if (isAdminGlobal) {
+        if (!partner_id) {
+          alert('Por favor, selecione um parceiro.');
+          setLoading(false);
+          return;
+        }
+        payload.partner_id = partner_id;
+      }
+      
+      await api.post('/clients', payload);
 
       // Resetar formulário
       setName('');
       setCnpj('');
       setCorporate_name('');
+      setPartner_id('');
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -123,6 +164,27 @@ export default function CreateClientDialog({
                 maxLength={255}
               />
             </div>
+            {isAdminGlobal && (
+              <div className="grid gap-2">
+                <Label htmlFor="partner_id">Parceiro *</Label>
+                <Select
+                  value={partner_id}
+                  onValueChange={(value) => setPartner_id(value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um parceiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {partners.map((partner) => (
+                      <SelectItem key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -133,7 +195,10 @@ export default function CreateClientDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={loading || !name.trim() || (isAdminGlobal && !partner_id)}
+            >
               {loading ? 'Criando...' : 'Criar Cliente'}
             </Button>
           </DialogFooter>

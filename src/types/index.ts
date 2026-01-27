@@ -127,6 +127,7 @@ export interface Partner {
   id: string;
   name: string;
   is_active: boolean;
+  is_strategic?: boolean;
   created_at: string;
   updated_at: string;
 }

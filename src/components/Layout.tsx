@@ -11,8 +11,10 @@ import {
   DollarSign,
   Building2,
   UserCircle,
-  LogOut 
+  LogOut,
+  Settings
 } from 'lucide-react';
+import logo from '@/assets/logo.jpeg';
 import { UserRole } from '@/types';
 
 export default function Layout() {
@@ -73,6 +75,11 @@ export default function Layout() {
             href: '/partners',
             icon: Building2,
           },
+          {
+            name: 'Gerenciamento',
+            href: '/management',
+            icon: Settings,
+          },
         ]
       : []),
   ];
@@ -87,8 +94,12 @@ export default function Layout() {
       <header className="sticky top-0 z-50 w-full border-b bg-blue-900">
         <div className="container flex h-16 items-center">
           {/* Logo no canto superior esquerdo */}
-          <div className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-white" />
+          <div className="flex items-center gap-3">
+            <img 
+              src={logo} 
+              alt="CCM Logo" 
+              className="h-10 w-auto object-contain"
+            />
             <span className="text-xl font-bold text-white">
               CCM
             </span>

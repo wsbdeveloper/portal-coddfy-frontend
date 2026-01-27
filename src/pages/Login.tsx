@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoginCredentials, LoginResponse } from '@/types';
 import api from '@/lib/api';
-import { FileText } from 'lucide-react';
+import logo from '@/assets/logo.jpeg';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -48,8 +48,12 @@ export default function Login() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-blue-900 relative">
       {/* Logo acima do login */}
       <div className="absolute top-8 flex items-center justify-center w-full">
-        <div className="flex items-center gap-2">
-          <FileText className="h-10 w-10 text-white" />
+        <div className="flex items-center gap-3">
+          <img 
+            src={logo} 
+            alt="CCM Logo" 
+            className="h-16 w-auto object-contain"
+          />
           <span className="text-3xl font-bold text-white">CCM</span>
         </div>
       </div>
