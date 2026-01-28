@@ -14,7 +14,7 @@ import {
   LogOut,
   Settings
 } from 'lucide-react';
-import logo from '@/assets/logo.jpeg';
+import logo from '@/assets/logo.png';
 import { UserRole } from '@/types';
 
 export default function Layout() {
