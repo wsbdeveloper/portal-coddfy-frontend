@@ -54,6 +54,15 @@ export default function Partners() {
     }
   };
 
+  const handleToggleStatus = async (partner: Partner) => {
+    try {
+      await api.patch(`/partners/${partner.id}`, { is_active: !partner.is_active });
+      fetchPartners();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao alterar status do parceiro');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -154,6 +163,13 @@ export default function Partners() {
                         Inativo
                       </Badge>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleStatus(partner)}
+                    >
+                      {partner.is_active ? 'Desativar' : 'Ativar'}
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"

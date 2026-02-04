@@ -71,7 +71,8 @@ export default function CreateInstallmentDialog({
   const fetchContracts = async () => {
     try {
       const response = await api.get('/contracts?status=ativo');
-      setContracts(response.data.contracts);
+      const list = response.data?.contracts ?? response.data;
+      setContracts(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('Erro ao carregar contratos:', err);
     }
@@ -79,20 +80,29 @@ export default function CreateInstallmentDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.contract_id?.trim()) {
+      alert('Por favor, selecione um contrato.');
+      return;
+    }
+    const numValue = parseFloat(formData.value);
+    if (isNaN(numValue) || numValue <= 0) {
+      alert('Por favor, insira um valor válido maior que zero.');
+      return;
+    }
     setLoading(true);
 
     try {
-      // Converter datas para ISO se preenchidas
-      const payload: any = {
-        contract_id: formData.contract_id,
-        month: formData.month,
-        value: parseFloat(formData.value),
+      // Payload mínimo exigido pela API; campos opcionais só entram se preenchidos
+      const payload: Record<string, unknown> = {
+        contract_id: formData.contract_id.trim(),
+        month: formData.month.trim(),
+        value: numValue,
       };
 
-      if (formData.invoice_number) {
+      if (formData.invoice_number?.trim()) {
         payload.invoice_number = formData.invoice_number.trim();
       }
-      if (formData.billing_date) {
+      if (formData.billing_date?.trim()) {
         try {
           payload.billing_date = parseDateToISO(formData.billing_date);
         } catch (err: any) {
@@ -101,10 +111,10 @@ export default function CreateInstallmentDialog({
           return;
         }
       }
-      if (formData.payment_term) {
+      if (formData.payment_term?.trim()) {
         payload.payment_term = formData.payment_term.trim();
       }
-      if (formData.expected_payment_date) {
+      if (formData.expected_payment_date?.trim()) {
         try {
           payload.expected_payment_date = parseDateToISO(formData.expected_payment_date);
         } catch (err: any) {
@@ -113,7 +123,7 @@ export default function CreateInstallmentDialog({
           return;
         }
       }
-      if (formData.payment_date) {
+      if (formData.payment_date?.trim()) {
         try {
           payload.payment_date = parseDateToISO(formData.payment_date);
         } catch (err: any) {
@@ -144,7 +154,8 @@ export default function CreateInstallmentDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao criar parcela');
+      const msg = err.response?.data?.error ?? err.response?.data?.message ?? err.message ?? 'Erro ao criar parcela';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
       setLoading(false);
     }

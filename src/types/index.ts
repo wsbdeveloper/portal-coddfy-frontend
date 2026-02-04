@@ -30,6 +30,7 @@ export interface Client {
   name: string;
   partner_id?: string | null;
   partner?: Partner;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +45,13 @@ export interface Installment {
   updated_at: string;
 }
 
+export interface FeedbackHistoryItem {
+  id?: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
 export interface Consultant {
   id: string;
   name: string;
@@ -51,6 +59,8 @@ export interface Consultant {
   contract_id: string;
   feedback: number;
   performance_color: string;
+  last_feedback_comment?: string;
+  feedback_history?: FeedbackHistoryItem[];
   created_at: string;
   updated_at: string;
 }

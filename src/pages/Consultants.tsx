@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ConsultantGroup, UserRole } from '@/types';
 import api from '@/lib/api';
 import { getFeedbackColor } from '@/lib/format';
-import { Users, Plus, TrendingUp, ChevronDown, ChevronUp, UserCircle, Star } from 'lucide-react';
+import { Users, Plus, TrendingUp, ChevronDown, ChevronUp, UserCircle, Star, Trash2 } from 'lucide-react';
 import CreateConsultantDialog from '@/components/CreateConsultantDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,16 @@ export default function Consultants() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteConsultant = async (consultantId: string, consultantName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o consultor "${consultantName}"?`)) return;
+    try {
+      await api.delete(`/consultants/${consultantId}`);
+      fetchConsultants();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao excluir consultor');
     }
   };
 
@@ -301,31 +311,68 @@ export default function Consultants() {
                         <div className="mt-2 p-4 border rounded-lg bg-muted/50">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-medium">Feedback de Performance</h4>
-                            {!isClient && (
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedConsultantId(consultant.id);
-                                  setSelectedConsultantName(consultant.name);
-                                  setContractId(group.contract_id);
-                                  setContractName(group.contract_name);
-                                  setFeedbackDialogOpen(true);
-                                }}
-                              >
-                                <Star className="mr-2 h-4 w-4" />
-                                Criar Feedback
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {!isClient && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedConsultantId(consultant.id);
+                                      setSelectedConsultantName(consultant.name);
+                                      setContractId(group.contract_id);
+                                      setContractName(group.contract_name);
+                                      setFeedbackDialogOpen(true);
+                                    }}
+                                  >
+                                    <Star className="mr-2 h-4 w-4" />
+                                    Criar Feedback
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteConsultant(consultant.id, consultant.name);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <p className="text-sm text-muted-foreground">
                               Média de feedbacks: {consultant.feedback}%
                             </p>
-                            {/* Histórico de feedbacks - placeholder */}
-                            <div className="text-sm text-muted-foreground italic">
-                              Histórico de feedbacks será exibido aqui quando disponível
-                            </div>
+                            {/* Comentários do histórico de feedbacks */}
+                            {(consultant.feedback_history && consultant.feedback_history.length > 0) ? (
+                              <div className="space-y-3">
+                                <p className="text-sm font-medium">Histórico de comentários:</p>
+                                {consultant.feedback_history.map((item, idx) => (
+                                  <div key={item.id || idx} className="p-3 rounded-lg bg-background border text-sm">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium">Nota: {item.rating}%</span>
+                                      {item.created_at && (
+                                        <span className="text-muted-foreground text-xs">
+                                          {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-muted-foreground">{item.comment || '—'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : consultant.last_feedback_comment ? (
+                              <div className="p-3 rounded-lg bg-background border text-sm">
+                                <p className="text-muted-foreground">{consultant.last_feedback_comment}</p>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                Nenhum comentário de feedback registrado ainda.
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}

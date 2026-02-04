@@ -14,7 +14,7 @@ import {
   LogOut,
   Settings
 } from 'lucide-react';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo/logo coddfy - horizontal cinza.png';
 import { UserRole } from '@/types';
 
 export default function Layout() {
@@ -100,12 +100,6 @@ export default function Layout() {
               alt="CCM Logo" 
               className="h-10 w-auto object-contain"
             />
-            <span className="text-xl font-bold text-white">
-              CCM
-            </span>
-            <span className="text-sm text-blue-200 ml-2">
-              (Contracts Manager)
-            </span>
           </div>
           <div className="flex-1" />
           {/* Nome do usuário e foto ao lado do botão sair */}

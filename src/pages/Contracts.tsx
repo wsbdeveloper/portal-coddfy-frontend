@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Contract, ContractStatus, UserRole } from '@/types';
 import api from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { FileText, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import CreateContractDialog from '@/components/CreateContractDialog';
 
 export default function Contracts() {
@@ -41,6 +41,16 @@ export default function Contracts() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteContract = async (contractId: string, contractName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o contrato "${contractName}"?`)) return;
+    try {
+      await api.delete(`/contracts/${contractId}`);
+      fetchContracts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao excluir contrato');
     }
   };
 
@@ -140,7 +150,22 @@ export default function Contracts() {
                       Responsável: {contract.client?.name}
                     </p>
                   </div>
-                  {getStatusBadge(contract.status)}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(contract.status)}
+                    {!isClient && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteContract(contract.id, contract.name);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
             <CardContent className="space-y-4">

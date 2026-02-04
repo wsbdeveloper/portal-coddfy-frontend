@@ -4,10 +4,11 @@
  */
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Client, UserRole } from '@/types';
 import api from '@/lib/api';
-import { UserCircle, Plus, Trash2 } from 'lucide-react';
+import { UserCircle, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import CreateClientDialog from '@/components/CreateClientDialog';
 
 export default function Clients() {
@@ -69,6 +70,16 @@ export default function Clients() {
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Erro ao deletar cliente';
       alert(errorMsg);
+    }
+  };
+
+  const handleToggleStatus = async (client: Client) => {
+    const newStatus = !(client.is_active !== false);
+    try {
+      await api.patch(`/clients/${client.id}`, { is_active: newStatus });
+      fetchClients();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao alterar status do cliente');
     }
   };
 
@@ -152,6 +163,24 @@ export default function Clients() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
+                    {client.is_active !== false ? (
+                      <Badge variant="success" className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Ativo
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <XCircle className="h-3 w-3" />
+                        Desativado
+                      </Badge>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleStatus(client)}
+                    >
+                      {client.is_active !== false ? 'Desativar' : 'Ativar'}
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"

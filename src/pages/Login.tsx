@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoginCredentials, LoginResponse } from '@/types';
 import api from '@/lib/api';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo/logo coddfy - horizontal cinza.png';
 
 export default function Login() {
   const navigate = useNavigate();
