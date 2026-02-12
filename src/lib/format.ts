@@ -16,7 +16,15 @@ export function formatCurrency(value: number): string {
  * Formata uma data ISO para formato brasileiro
  */
 export function formatDate(dateString: string): string {
+  if (!dateString) return '—';
+  
   const date = new Date(dateString);
+  
+  // Verificar se a data é válida
+  if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+    return '—';
+  }
+  
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',

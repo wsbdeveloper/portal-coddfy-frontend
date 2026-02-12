@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Partner, UserRole } from '@/types';
+import { Partner, Client, UserRole } from '@/types';
 import api from '@/lib/api';
 
 interface CreateUserDialogProps {
@@ -35,18 +35,22 @@ export default function CreateUserDialog({
   onSuccess,
 }: CreateUserDialogProps) {
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     role: UserRole.USER_PARTNER,
+    assignment_type: 'partner' as 'partner' | 'client' | 'internal',
     partner_id: '',
+    client_id: '',
   });
 
   useEffect(() => {
     if (open) {
       fetchPartners();
+      fetchClients();
     }
   }, [open]);
 
@@ -59,20 +63,53 @@ export default function CreateUserDialog({
     }
   };
 
+  const fetchClients = async () => {
+    try {
+      const response = await api.get('/clients');
+      const clientsData = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data?.clients || []);
+      setClients(clientsData);
+    } catch (err) {
+      console.error('Erro ao carregar clientes:', err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Usar endpoint /auth/register conforme PRD
-      // Garantir que role seja enviado como string
-      await api.post('/auth/register', {
+      // Validar campos obrigatórios baseado no assignment_type
+      if (formData.assignment_type === 'client' && !formData.client_id) {
+        alert('Por favor, selecione um cliente.');
+        setLoading(false);
+        return;
+      }
+      if (formData.assignment_type === 'partner' && !formData.partner_id) {
+        alert('Por favor, selecione um parceiro.');
+        setLoading(false);
+        return;
+      }
+
+      // Montar payload conforme nova API
+      const payload: any = {
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        role: String(formData.role), // Garantir que seja string
-        partner_id: formData.partner_id || null,
-      });
+        role: String(formData.role),
+        assignment_type: formData.assignment_type,
+      };
+
+      // Adicionar partner_id ou client_id conforme assignment_type
+      if (formData.assignment_type === 'partner') {
+        payload.partner_id = formData.partner_id || null;
+      } else if (formData.assignment_type === 'client') {
+        payload.client_id = formData.client_id || null;
+      }
+      // Para 'internal', não adiciona nem partner_id nem client_id
+
+      await api.post('/auth/register', payload);
 
       // Resetar formulário
       setFormData({
@@ -80,7 +117,9 @@ export default function CreateUserDialog({
         email: '',
         password: '',
         role: UserRole.USER_PARTNER,
+        assignment_type: 'partner',
         partner_id: '',
+        client_id: '',
       });
 
       onSuccess();
@@ -99,7 +138,7 @@ export default function CreateUserDialog({
         <DialogHeader>
           <DialogTitle>Criar Novo Usuário</DialogTitle>
           <DialogDescription>
-            Adicione um novo usuário ao sistema. O usuário deve estar associado a um parceiro.
+            Adicione um novo usuário ao sistema. Selecione o tipo de associação do usuário.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -166,7 +205,37 @@ export default function CreateUserDialog({
               </Select>
             </div>
 
-            {(formData.role === UserRole.ADMIN_PARTNER || formData.role === UserRole.USER_PARTNER) && (
+            <div className="grid gap-2">
+              <Label htmlFor="assignment_type">Tipo de Associação *</Label>
+              <Select
+                value={formData.assignment_type}
+                onValueChange={(value) => {
+                  setFormData({ 
+                    ...formData, 
+                    assignment_type: value as 'partner' | 'client' | 'internal',
+                    partner_id: '', // Reset ao mudar tipo
+                    client_id: '', // Reset ao mudar tipo
+                  });
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo de associação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="partner">Parceiro</SelectItem>
+                  <SelectItem value="client">Cliente</SelectItem>
+                  <SelectItem value="internal">Interno</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.assignment_type === 'partner' && 'Usuário associado a um parceiro'}
+                {formData.assignment_type === 'client' && 'Usuário associado a um cliente (partner_id será deduzido automaticamente)'}
+                {formData.assignment_type === 'internal' && 'Usuário interno do sistema'}
+              </p>
+            </div>
+
+            {formData.assignment_type === 'partner' && (
               <div className="grid gap-2">
                 <Label htmlFor="partner_id">Parceiro *</Label>
                 <Select
@@ -189,6 +258,30 @@ export default function CreateUserDialog({
                 </Select>
               </div>
             )}
+
+            {formData.assignment_type === 'client' && (
+              <div className="grid gap-2">
+                <Label htmlFor="client_id">Cliente *</Label>
+                <Select
+                  value={formData.client_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, client_id: value })
+                  }
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -204,9 +297,8 @@ export default function CreateUserDialog({
               type="submit"
               disabled={
                 loading ||
-                ((formData.role === UserRole.ADMIN_PARTNER ||
-                  formData.role === UserRole.USER_PARTNER) &&
-                  !formData.partner_id)
+                (formData.assignment_type === 'partner' && !formData.partner_id) ||
+                (formData.assignment_type === 'client' && !formData.client_id)
               }
             >
               {loading ? 'Criando...' : 'Criar Usuário'}

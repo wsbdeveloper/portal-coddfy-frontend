@@ -133,7 +133,9 @@ export default function CreateInstallmentDialog({
         }
       }
 
-      await api.post('/installments', payload);
+      console.log('Enviando payload:', payload);
+      const response = await api.post('/installments', payload);
+      console.log('Resposta da API:', response.data);
 
       // Resetar formulário
       const now = new Date();
@@ -151,11 +153,33 @@ export default function CreateInstallmentDialog({
         payment_date: '',
       });
 
+      alert('Parcela criada com sucesso!');
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      const msg = err.response?.data?.error ?? err.response?.data?.message ?? err.message ?? 'Erro ao criar parcela';
-      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      console.error('Erro ao criar parcela:', err);
+      console.error('Resposta do erro:', err.response?.data);
+      console.error('Status do erro:', err.response?.status);
+      
+      let errorMessage = 'Erro ao criar parcela';
+      
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else {
+          errorMessage = JSON.stringify(err.response.data);
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      alert(`Erro: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

@@ -12,7 +12,8 @@ import {
   Building2,
   UserCircle,
   LogOut,
-  Settings
+  Settings,
+  Calendar
 } from 'lucide-react';
 import logo from '@/assets/logo/logo coddfy - horizontal cinza.png';
 import { UserRole } from '@/types';
@@ -32,9 +33,9 @@ export default function Layout() {
   const user = userStr ? JSON.parse(userStr) : null;
   // Comparar com o valor do enum (string)
   const isAdminGlobal = user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global';
-  /*const isAdmin = isAdminGlobal || 
+  const isAdmin = isAdminGlobal || 
                   user?.role === UserRole.ADMIN_PARTNER || 
-                  user?.role === 'admin_partner';*/
+                  user?.role === 'admin_partner';
 
   const navigation = [
     {
@@ -57,6 +58,16 @@ export default function Layout() {
       href: '/billing',
       icon: DollarSign,
     },
+    // Apenas admin e parceiros podem ver timesheets
+    ...(isAdmin
+      ? [
+          {
+            name: 'Timesheets',
+            href: '/timesheets',
+            icon: Calendar,
+          },
+        ]
+      : []),
     // Apenas admin pode ver clientes
     ...((user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global')
       ? [

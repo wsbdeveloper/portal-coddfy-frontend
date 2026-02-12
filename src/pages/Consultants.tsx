@@ -190,7 +190,7 @@ export default function Consultants() {
                   }
                   
                   if (selectedConsultantId && contractId) {
-                    await api.post(`/feedbacks/${selectedConsultantId}`, { 
+                    await api.post(`/feedbacks`, { 
                       rating: parseInt(feedbackValue), 
                       comment: feedbackComment.trim(), 
                       consultant_id: selectedConsultantId,
@@ -204,7 +204,8 @@ export default function Consultants() {
                     setFeedbackComment('');
                     setContractId(null);
                     setContractName('');
-                    fetchConsultants();
+                    // Recarregar consultores para atualizar feedbacks
+                    await fetchConsultants();
                   }
                 } catch (err: any) {
                   alert(err.response?.data?.error || 'Erro ao criar feedback');
@@ -288,6 +289,19 @@ export default function Consultants() {
                                 : 'Precisa melhorar'}
                             </p>
                           </div>
+                          {!isClient && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteConsultant(consultant.id, consultant.name);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -336,7 +350,8 @@ export default function Consultants() {
                                       handleDeleteConsultant(consultant.id, consultant.name);
                                     }}
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Deletar
                                   </Button>
                                 </>
                               )}
@@ -352,7 +367,7 @@ export default function Consultants() {
                                 <p className="text-sm font-medium">Histórico de comentários:</p>
                                 {consultant.feedback_history.map((item, idx) => (
                                   <div key={item.id || idx} className="p-3 rounded-lg bg-background border text-sm">
-                                    <div className="flex items-center gap-2 mb-1">
+                                    <div className="flex items-center gap-2 mb-2">
                                       <span className="font-medium">Nota: {item.rating}%</span>
                                       {item.created_at && (
                                         <span className="text-muted-foreground text-xs">
@@ -360,13 +375,13 @@ export default function Consultants() {
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-muted-foreground">{item.comment || '—'}</p>
+                                    <p className="text-muted-foreground whitespace-pre-wrap">{item.comment || '—'}</p>
                                   </div>
                                 ))}
                               </div>
                             ) : consultant.last_feedback_comment ? (
                               <div className="p-3 rounded-lg bg-background border text-sm">
-                                <p className="text-muted-foreground">{consultant.last_feedback_comment}</p>
+                                <p className="text-muted-foreground whitespace-pre-wrap">{consultant.last_feedback_comment}</p>
                               </div>
                             ) : (
                               <p className="text-sm text-muted-foreground italic">

@@ -20,6 +20,9 @@ export interface User {
   email: string;
   role: UserRole;
   partner_id: string | null;
+  assignment_type?: 'partner' | 'client' | 'internal';
+  client_id?: string | null;
+  client?: Client;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -140,6 +143,20 @@ export interface Partner {
   is_strategic?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface Timesheet {
+  id: string;
+  contract_id: string;
+  consultant_id?: string | null;
+  file_url?: string | null;
+  hours?: number | null;
+  approver?: string | null;
+  approval_date?: string | null;
+  created_at: string;
+  updated_at: string;
+  contract?: Contract;
+  consultant?: Consultant;
 }
 
 

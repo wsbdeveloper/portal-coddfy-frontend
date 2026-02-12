@@ -454,15 +454,27 @@ export default function Management() {
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <div>
                         <p className="font-medium">{user.username}</p>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                       <Badge variant="outline">{user.role}</Badge>
+                      {user.assignment_type && (
+                        <Badge variant="outline" className="capitalize">
+                          {user.assignment_type === 'partner' && 'Parceiro'}
+                          {user.assignment_type === 'client' && 'Cliente'}
+                          {user.assignment_type === 'internal' && 'Interno'}
+                        </Badge>
+                      )}
                       {user.partner_id && (
                         <Badge variant="secondary">
-                          {partners.find((p) => p.id === user.partner_id)?.name || 'Parceiro'}
+                          Parceiro: {partners.find((p) => p.id === user.partner_id)?.name || 'N/A'}
+                        </Badge>
+                      )}
+                      {user.client && (
+                        <Badge variant="secondary">
+                          Cliente: {user.client.name}
                         </Badge>
                       )}
                       {user.is_active ? (
@@ -834,6 +846,26 @@ function EditUserDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {/* Informações de associação (somente leitura) */}
+            {user && (user.assignment_type || user.client) && (
+              <div className="p-3 bg-muted rounded-lg space-y-2">
+                <p className="text-sm font-medium">Informações de Associação</p>
+                {user.assignment_type && (
+                  <p className="text-sm text-muted-foreground">
+                    Tipo: <span className="capitalize font-medium">
+                      {user.assignment_type === 'partner' && 'Parceiro'}
+                      {user.assignment_type === 'client' && 'Cliente'}
+                      {user.assignment_type === 'internal' && 'Interno'}
+                    </span>
+                  </p>
+                )}
+                {user.client && (
+                  <p className="text-sm text-muted-foreground">
+                    Cliente: <span className="font-medium">{user.client.name}</span>
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="edit-username">Nome de Usuário *</Label>
               <Input

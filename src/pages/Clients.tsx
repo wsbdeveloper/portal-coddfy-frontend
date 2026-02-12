@@ -74,7 +74,9 @@ export default function Clients() {
   };
 
   const handleToggleStatus = async (client: Client) => {
-    const newStatus = !(client.is_active !== false);
+    // Se está ativo (true, undefined ou null), desativa. Se está false, ativa.
+    const currentStatus = client.is_active === undefined || client.is_active === null ? true : client.is_active;
+    const newStatus = !currentStatus;
     try {
       await api.patch(`/clients/${client.id}`, { is_active: newStatus });
       fetchClients();
@@ -163,7 +165,7 @@ export default function Clients() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {client.is_active !== false ? (
+                    {(client.is_active === undefined || client.is_active === null || client.is_active === true) ? (
                       <Badge variant="success" className="flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         Ativo
@@ -179,7 +181,7 @@ export default function Clients() {
                       size="sm"
                       onClick={() => handleToggleStatus(client)}
                     >
-                      {client.is_active !== false ? 'Desativar' : 'Ativar'}
+                      {(client.is_active === undefined || client.is_active === null || client.is_active === true) ? 'Desativar' : 'Ativar'}
                     </Button>
                     <Button
                       variant="destructive"
