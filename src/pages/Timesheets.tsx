@@ -312,16 +312,110 @@ export default function Timesheets() {
                             </div>
                           )}
                         </div>
-                        {timesheet.file_url && (
+                        {(timesheet.file_url || timesheet.id) && (
                           <div className="mt-2">
-                            <a
-                              href={timesheet.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline"
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const token = localStorage.getItem('token');
+                                  const API_URL = import.meta.env.VITE_API_URL || 'http://0.0.0.0:6543/api';
+                                  const fileUrl = `${API_URL}/timesheets/${timesheet.id}/file`;
+                                  
+                                  // Fazer requisição GET com JWT usando fetch (para blob)
+                                  const response = await fetch(fileUrl, {
+                                    method: 'GET',
+                                    headers: {
+                                      'Authorization': `Bearer ${token}`,
+                                    },
+                                  });
+                                  
+                                  if (!response.ok) {
+                                    const errorData = await response.json().catch(() => ({ error: 'Erro ao baixar arquivo' }));
+                                    throw new Error(errorData.error || 'Erro ao baixar arquivo');
+                                  }
+                                  
+                                  // Obter o blob do arquivo
+                                  const blob = await response.blob();
+                                  
+                                  // Criar URL temporária e abrir em nova aba
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.target = '_blank';
+                                  a.rel = 'noopener noreferrer';
+                                  
+                                  // Gerar nome do arquivo: timesheets_YYYY-MM-DD.extensão
+                                  let fileName = 'timesheets';
+                                  
+                                  // Usar a data do timesheet (created_at ou approval_date) ou data atual
+                                  let dateToUse: Date;
+                                  if (timesheet.approval_date) {
+                                    dateToUse = new Date(timesheet.approval_date);
+                                  } else if (timesheet.created_at) {
+                                    dateToUse = new Date(timesheet.created_at);
+                                  } else {
+                                    dateToUse = new Date();
+                                  }
+                                  
+                                  // Formatar data como YYYY-MM-DD
+                                  const year = dateToUse.getFullYear();
+                                  const month = String(dateToUse.getMonth() + 1).padStart(2, '0');
+                                  const day = String(dateToUse.getDate()).padStart(2, '0');
+                                  const dateStr = `${year}-${month}-${day}`;
+                                  
+                                  // Tentar obter extensão do Content-Type ou Content-Disposition
+                                  let extension = '';
+                                  const contentType = response.headers.get('Content-Type');
+                                  const contentDisposition = response.headers.get('Content-Disposition');
+                                  
+                                  // Primeiro, tentar obter do Content-Disposition
+                                  if (contentDisposition) {
+                                    const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                    if (fileNameMatch && fileNameMatch[1]) {
+                                      const originalFileName = fileNameMatch[1].replace(/['"]/g, '');
+                                      const extMatch = originalFileName.match(/\.([^.]+)$/);
+                                      if (extMatch) {
+                                        extension = extMatch[1];
+                                      }
+                                    }
+                                  }
+                                  
+                                  // Se não encontrou extensão, tentar do Content-Type
+                                  if (!extension && contentType) {
+                                    const mimeToExt: Record<string, string> = {
+                                      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+                                      'application/vnd.ms-excel': 'xls',
+                                      'text/csv': 'csv',
+                                      'text/plain': 'txt',
+                                      'text/txt': 'txt',
+                                    };
+                                    extension = mimeToExt[contentType.split(';')[0].trim()] || '';
+                                  }
+                                  
+                                  // Se ainda não encontrou, usar extensão padrão
+                                  if (!extension) {
+                                    extension = 'txt'; // padrão: arquivo de texto
+                                  }
+                                  
+                                  // Montar nome completo: timesheets_YYYY-MM-DD.extensão
+                                  fileName = `timesheets_${dateStr}.${extension}`;
+                                  a.download = fileName;
+                                  
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  
+                                  // Limpar URL temporária após um tempo
+                                  setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                } catch (err: any) {
+                                  console.error('Erro ao baixar arquivo:', err);
+                                  alert(err.message || 'Erro ao baixar arquivo');
+                                }
+                              }}
+                              className="text-sm text-blue-600 hover:underline cursor-pointer bg-transparent border-none p-0"
                             >
                               Ver arquivo
-                            </a>
+                            </button>
                           </div>
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
