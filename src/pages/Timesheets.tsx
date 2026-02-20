@@ -17,6 +17,7 @@ import {
 import { Timesheet, Contract, Consultant, UserRole } from '@/types';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { filterContractsByPartner, getCurrentUser, isClientUser, getCurrentUserClientId, isAdminGlobal } from '@/lib/auth';
 import {
   FileText,
   Plus,
@@ -84,7 +85,27 @@ export default function Timesheets() {
       }
 
       const response = await api.get(`/timesheets?${params.toString()}`);
-      setTimesheets(Array.isArray(response.data) ? response.data : (response.data?.timesheets || []));
+      const allTimesheets = Array.isArray(response.data) ? response.data : (response.data?.timesheets || []);
+      // Aplicar filtro de segurança por partner_id ou client_id
+      const currentUser = getCurrentUser();
+      const filteredTimesheets = allTimesheets.filter((timesheet: Timesheet) => {
+        // Se for Admin Global, mostrar todos
+        if (isAdminGlobal()) {
+          return true;
+        }
+        
+        // Se o usuário é do tipo cliente, filtrar por client_id
+        if (isClientUser()) {
+          const userClientId = getCurrentUserClientId();
+          if (!userClientId) return false;
+          return timesheet.contract?.client_id === userClientId || 
+                 timesheet.contract?.client?.id === userClientId;
+        }
+        
+        // Se o usuário é do tipo parceiro, filtrar por partner_id
+        return timesheet.contract?.client?.partner_id === currentUser?.partner_id;
+      });
+      setTimesheets(filteredTimesheets);
       setError(null);
     } catch (err: any) {
       setError('Erro ao carregar timesheets');
@@ -97,10 +118,12 @@ export default function Timesheets() {
   const fetchContracts = async () => {
     try {
       const response = await api.get('/contracts');
-      const contractsData = Array.isArray(response.data) 
+      const allContracts: Contract[] = Array.isArray(response.data) 
         ? response.data 
         : (response.data?.contracts || []);
-      setContracts(contractsData);
+      // Aplicar filtro de segurança por partner_id
+      const filteredContracts = filterContractsByPartner(allContracts);
+      setContracts(filteredContracts);
     } catch (err) {
       console.error('Erro ao carregar contratos:', err);
     }

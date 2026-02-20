@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Contract, ContractStatus, UserRole } from '@/types';
 import api from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { filterContractsByPartner } from '@/lib/auth';
 import { FileText, Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import CreateContractDialog from '@/components/CreateContractDialog';
 
@@ -34,7 +35,10 @@ export default function Contracts() {
     try {
       setLoading(true);
       const response = await api.get('/contracts');
-      setContracts(response.data.contracts);
+      const allContracts: Contract[] = response.data.contracts || [];
+      // Aplicar filtro de segurança por partner_id ou client_id
+      const filteredContracts = filterContractsByPartner<Contract>(allContracts);
+      setContracts(filteredContracts);
       setError(null);
     } catch (err) {
       setError('Erro ao carregar contratos');

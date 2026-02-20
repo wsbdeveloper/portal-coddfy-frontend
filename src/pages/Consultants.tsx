@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ConsultantGroup, UserRole } from '@/types';
 import api from '@/lib/api';
 import { getFeedbackColor } from '@/lib/format';
+import { getCurrentUser, isClientUser, getCurrentUserClientId, isAdminGlobal } from '@/lib/auth';
 import { Users, Plus, TrendingUp, ChevronDown, ChevronUp, UserCircle, Star, Trash2 } from 'lucide-react';
 import CreateConsultantDialog from '@/components/CreateConsultantDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -45,7 +46,71 @@ export default function Consultants() {
     try {
       setLoading(true);
       const response = await api.get('/consultants');
-      setGroups(response.data.groups);
+      const allGroups = response.data.groups || [];
+      
+      // Aplicar filtro de segurança por partner_id ou client_id
+      // Como ConsultantGroup não tem partner_id direto, precisamos buscar os contratos
+      let filteredGroups = allGroups;
+      
+      // Se não for Admin Global, aplicar filtro adicional
+      if (!isAdminGlobal()) {
+        const currentUser = getCurrentUser();
+        
+        // Se o usuário é do tipo cliente, filtrar por client_id
+        if (isClientUser()) {
+          const userClientId = getCurrentUserClientId();
+          if (userClientId) {
+            // Buscar contratos para verificar client_id
+            try {
+              const contractsRes = await api.get('/contracts');
+              const contracts = contractsRes.data?.contracts || [];
+              const contractClientMap = new Map<string, string | null>();
+              contracts.forEach((contract: any) => {
+                contractClientMap.set(contract.id, contract.client_id || contract.client?.id || null);
+              });
+              
+              // Filtrar grupos baseado no client_id do contrato
+              filteredGroups = allGroups.filter((group: ConsultantGroup) => {
+                const contractClientId = contractClientMap.get(group.contract_id);
+                return contractClientId === userClientId;
+              });
+            } catch (contractErr) {
+              console.warn('Erro ao buscar contratos para filtro de segurança:', contractErr);
+              filteredGroups = [];
+            }
+          } else {
+            filteredGroups = [];
+          }
+        } else {
+          // Se o usuário é do tipo parceiro, filtrar por partner_id
+          const userPartnerId = currentUser?.partner_id;
+          if (userPartnerId) {
+            // Buscar contratos para verificar partner_id
+            try {
+              const contractsRes = await api.get('/contracts');
+              const contracts = contractsRes.data?.contracts || [];
+              const contractPartnerMap = new Map<string, string | null>();
+              contracts.forEach((contract: any) => {
+                contractPartnerMap.set(contract.id, contract.client?.partner_id || null);
+              });
+              
+              // Filtrar grupos baseado no partner_id do contrato
+              filteredGroups = allGroups.filter((group: ConsultantGroup) => {
+                const contractPartnerId = contractPartnerMap.get(group.contract_id);
+                return contractPartnerId === userPartnerId;
+              });
+            } catch (contractErr) {
+              console.warn('Erro ao buscar contratos para filtro de segurança:', contractErr);
+              filteredGroups = [];
+            }
+          } else {
+            // Usuário sem partner_id não deve ver nada
+            filteredGroups = [];
+          }
+        }
+      }
+      
+      setGroups(filteredGroups);
       setError(null);
     } catch (err) {
       setError('Erro ao carregar consultores');

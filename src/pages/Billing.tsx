@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import api from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { getCurrentUser, isClientUser, getCurrentUserClientId, isAdminGlobal } from '@/lib/auth';
 import { UserRole } from '@/types';
 import {
   DollarSign,
@@ -113,8 +114,95 @@ export default function Billing() {
         api.get('/installments/summary'),
       ]);
 
-      setInstallments(installmentsRes.data.installments);
-      setSummary(summaryRes.data);
+      const allInstallments = installmentsRes.data.installments || [];
+      // Aplicar filtro de segurança por partner_id ou client_id
+      // Como Installment não tem essas informações diretamente, precisamos buscar os contratos
+      let filteredInstallments = allInstallments;
+      
+      if (!isAdminGlobal()) {
+        try {
+          const contractsRes = await api.get('/contracts');
+          const contracts = contractsRes.data?.contracts || [];
+          const contractMap = new Map<string, any>();
+          contracts.forEach((contract: any) => {
+            contractMap.set(contract.id, contract);
+          });
+          
+          const currentUser = getCurrentUser();
+          
+          // Se o usuário é do tipo cliente, filtrar por client_id
+          if (isClientUser()) {
+            const userClientId = getCurrentUserClientId();
+            if (userClientId) {
+              filteredInstallments = allInstallments.filter((installment: Installment) => {
+                const contract = contractMap.get(installment.contract_id);
+                return contract?.client_id === userClientId || contract?.client?.id === userClientId;
+              });
+            } else {
+              filteredInstallments = [];
+            }
+          } else {
+            // Se o usuário é do tipo parceiro, filtrar por partner_id
+            const userPartnerId = currentUser?.partner_id;
+            if (userPartnerId) {
+              filteredInstallments = allInstallments.filter((installment: Installment) => {
+                const contract = contractMap.get(installment.contract_id);
+                return contract?.client?.partner_id === userPartnerId;
+              });
+            } else {
+              filteredInstallments = [];
+            }
+          }
+        } catch (contractErr) {
+          console.warn('Erro ao buscar contratos para filtro de segurança:', contractErr);
+          // Se falhar, manter todos (backend deve filtrar)
+        }
+      }
+      
+      setInstallments(filteredInstallments);
+      
+      // Filtrar também o summary por partner_id ou client_id
+      const summaryData = summaryRes.data;
+      if (summaryData && !isAdminGlobal()) {
+        // Filtrar contratos no summary
+        if (summaryData.contracts) {
+          try {
+            const contractsRes = await api.get('/contracts');
+            const contracts = contractsRes.data?.contracts || [];
+            const contractMap = new Map<string, any>();
+            contracts.forEach((contract: any) => {
+              contractMap.set(contract.id, contract);
+            });
+            
+            const currentUser = getCurrentUser();
+            
+            if (isClientUser()) {
+              const userClientId = getCurrentUserClientId();
+              if (userClientId) {
+                summaryData.contracts = summaryData.contracts.filter((summaryContract: any) => {
+                  const contract = contractMap.get(summaryContract.contract_id);
+                  return contract?.client_id === userClientId || contract?.client?.id === userClientId;
+                });
+              } else {
+                summaryData.contracts = [];
+              }
+            } else {
+              const userPartnerId = currentUser?.partner_id;
+              if (userPartnerId) {
+                summaryData.contracts = summaryData.contracts.filter((summaryContract: any) => {
+                  const contract = contractMap.get(summaryContract.contract_id);
+                  return contract?.client?.partner_id === userPartnerId;
+                });
+              } else {
+                summaryData.contracts = [];
+              }
+            }
+          } catch (contractErr) {
+            console.warn('Erro ao buscar contratos para filtro do summary:', contractErr);
+          }
+        }
+      }
+      setSummary(summaryData);
       setError(null);
     } catch (err) {
       setError('Erro ao carregar dados de faturamento');

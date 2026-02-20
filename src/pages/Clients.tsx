@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Client, UserRole } from '@/types';
 import api from '@/lib/api';
+import { filterByPartner } from '@/lib/auth';
 import { UserCircle, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import CreateClientDialog from '@/components/CreateClientDialog';
 
@@ -39,13 +40,15 @@ export default function Clients() {
       setLoading(true);
       const response = await api.get('/clients');
       // Trata diferentes formatos de resposta da API
+      let allClients: Client[] = [];
       if (Array.isArray(response.data)) {
-        setClients(response.data);
+        allClients = response.data;
       } else if (response.data?.clients) {
-        setClients(response.data.clients);
-      } else {
-        setClients([]);
+        allClients = response.data.clients;
       }
+      // Aplicar filtro de segurança por partner_id
+      const filteredClients = filterByPartner(allClients, (client) => client.partner_id);
+      setClients(filteredClients);
       setError(null);
     } catch (err: any) {
       if (err.response?.status === 403) {
