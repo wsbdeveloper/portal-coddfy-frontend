@@ -23,6 +23,7 @@ import {
 import { Contract } from '@/types';
 import api from '@/lib/api';
 import { formatDateInput, parseDateToISO } from '@/lib/format';
+import { filterContractsByPartner } from '@/lib/auth';
 
 interface CreateInstallmentDialogProps {
   open: boolean;
@@ -72,9 +73,13 @@ export default function CreateInstallmentDialog({
     try {
       const response = await api.get('/contracts?status=ativo');
       const list = response.data?.contracts ?? response.data;
-      setContracts(Array.isArray(list) ? list : []);
+      const allContracts = Array.isArray(list) ? list : [];
+      // Aplicar filtro de segurança por partner_id ou client_id
+      const filteredContracts = filterContractsByPartner<Contract>(allContracts);
+      setContracts(filteredContracts);
     } catch (err) {
       console.error('Erro ao carregar contratos:', err);
+      setContracts([]);
     }
   };
 
@@ -91,13 +96,15 @@ export default function CreateInstallmentDialog({
     }
     setLoading(true);
 
+    // Payload mínimo exigido pela API; campos opcionais só entram se preenchidos
+    // O valor deve ser enviado como string para corresponder ao tipo no backend
+    const payload: Record<string, unknown> = {
+      contract_id: formData.contract_id.trim(),
+      month: formData.month.trim(),
+      value: numValue.toString(),
+    };
+
     try {
-      // Payload mínimo exigido pela API; campos opcionais só entram se preenchidos
-      const payload: Record<string, unknown> = {
-        contract_id: formData.contract_id.trim(),
-        month: formData.month.trim(),
-        value: numValue,
-      };
 
       if (formData.invoice_number?.trim()) {
         payload.invoice_number = formData.invoice_number.trim();
@@ -134,6 +141,8 @@ export default function CreateInstallmentDialog({
       }
 
       console.log('Enviando payload:', payload);
+      console.log('Payload JSON:', JSON.stringify(payload));
+      
       const response = await api.post('/installments', payload);
       console.log('Resposta da API:', response.data);
 
@@ -157,9 +166,11 @@ export default function CreateInstallmentDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      console.error('Erro ao criar parcela:', err);
+      console.error('Erro completo ao criar parcela:', err);
       console.error('Resposta do erro:', err.response?.data);
       console.error('Status do erro:', err.response?.status);
+      console.error('Headers do erro:', err.response?.headers);
+      console.error('Payload enviado:', payload);
       
       let errorMessage = 'Erro ao criar parcela';
       
@@ -171,15 +182,23 @@ export default function CreateInstallmentDialog({
         } else if (err.response.data.message) {
           errorMessage = err.response.data.message;
         } else if (err.response.data.detail) {
-          errorMessage = err.response.data.detail;
+          // Pydantic validation errors
+          if (Array.isArray(err.response.data.detail)) {
+            const errors = err.response.data.detail.map((e: any) => 
+              `${e.loc?.join('.') || 'campo'}: ${e.msg || e.message || 'erro'}`
+            ).join('\n');
+            errorMessage = `Erros de validação:\n${errors}`;
+          } else {
+            errorMessage = err.response.data.detail;
+          }
         } else {
-          errorMessage = JSON.stringify(err.response.data);
+          errorMessage = JSON.stringify(err.response.data, null, 2);
         }
       } else if (err.message) {
         errorMessage = err.message;
       }
       
-      alert(`Erro: ${errorMessage}`);
+      alert(`Erro ao criar parcela:\n\n${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -190,10 +209,18 @@ export default function CreateInstallmentDialog({
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const now = new Date();
     
-    for (let i = -2; i <= 12; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() + i);
-      const monthStr = `${monthNames[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
+    // Data inicial: Janeiro de 2025
+    const startDate = new Date(2025, 0, 1); // Janeiro = 0
+    // Data final: Mês atual
+    const endDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Iterar mês a mês de janeiro/2025 até o mês atual
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const monthStr = `${monthNames[currentDate.getMonth()]}/${currentDate.getFullYear().toString().slice(-2)}`;
       months.push(monthStr);
+      // Avançar para o próximo mês
+      currentDate.setMonth(currentDate.getMonth() + 1);
     }
     
     return months;
