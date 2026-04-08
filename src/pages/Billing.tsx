@@ -2,7 +2,7 @@
  * Página de Faturamento
  * Gestão completa de parcelas e análise financeira
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,10 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 import CreateInstallmentDialog from '@/components/CreateInstallmentDialog';
+import { isInstallmentOverdue } from '@/lib/installmentOverdue';
 
 interface Installment {
   id: string;
@@ -41,6 +43,11 @@ interface Installment {
   value: string;
   billed: boolean;
   created_at: string;
+  invoice_number?: string | null;
+  billing_date?: string | null;
+  payment_term?: string | null;
+  expected_payment_date?: string | null;
+  payment_date?: string | null;
   contract?: {
     id: string;
     name: string;
@@ -75,8 +82,13 @@ export default function Billing() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
   const [expandedInstallments, setExpandedInstallments] = useState<Set<string>>(new Set());
-  const [overdueData] = useState<any[]>([]);
   const [showOverdue, setShowOverdue] = useState(false);
+  const [installmentToEdit, setInstallmentToEdit] = useState<Installment | null>(null);
+
+  const overdueInstallments = useMemo(
+    () => installments.filter((i) => isInstallmentOverdue(i)),
+    [installments]
+  );
 
   // Verificar se é cliente
   const userStr = localStorage.getItem('user');
@@ -324,7 +336,12 @@ export default function Billing() {
             Exportar PDF
           </Button>
           {!isClient && (
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button
+              onClick={() => {
+                setInstallmentToEdit(null);
+                setDialogOpen(true);
+              }}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Nova Parcela
             </Button>
@@ -334,61 +351,13 @@ export default function Billing() {
 
       <CreateInstallmentDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setInstallmentToEdit(null);
+        }}
         onSuccess={fetchData}
+        installmentToEdit={installmentToEdit}
       />
-
-      {/* Filtros - Movido para cima dos resumos */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Filtros</CardTitle>
-              <CardDescription>
-                Refine a busca de parcelas
-              </CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Limpar filtros
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={filterBilled} onValueChange={setFilterBilled}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="true">Faturadas</SelectItem>
-                  <SelectItem value="false">Pendentes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Mês</Label>
-              <Input
-                placeholder="Ex: Jan/25"
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ano</Label>
-              <Input
-                placeholder="Ex: 25"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* KPIs de Resumo */}
       {summary && (
@@ -396,7 +365,7 @@ export default function Billing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Total Faturado
+                Faturado e Pago
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-600" />
             </CardHeader>
@@ -413,7 +382,7 @@ export default function Billing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Total Pendente
+                Faturado e Pendente Pagamento
               </CardTitle>
               <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
@@ -429,7 +398,7 @@ export default function Billing() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Geral</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Faturado</CardTitle>
               <DollarSign className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
@@ -445,7 +414,7 @@ export default function Billing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                % Faturado
+                % Faturado e Pago
               </CardTitle>
               <TrendingUp className="h-4 w-4 text-blue-600" />
             </CardHeader>
@@ -485,15 +454,21 @@ export default function Billing() {
           {showOverdue && (
             <CardContent>
               <div className="space-y-3">
-                {overdueData.length > 0 ? (
-                  overdueData.map((item) => (
+                {overdueInstallments.length > 0 ? (
+                  overdueInstallments.map((item) => (
                     <div key={item.id} className="p-3 border rounded-lg bg-red-50">
-                      <p className="font-medium">{item.contract_name}</p>
+                      <p className="font-medium">{item.contract?.name || '—'}</p>
                       <p className="text-sm text-muted-foreground">
-                        Cliente: {item.client_name}
+                        Cliente: {item.contract?.client?.name || '—'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Mês: {item.month}
+                        {item.expected_payment_date
+                          ? ` · Vencimento: ${formatDate(item.expected_payment_date)}`
+                          : ''}
                       </p>
                       <p className="text-sm font-medium text-red-600 mt-1">
-                        Valor: {formatCurrency(item.value)}
+                        Valor: {formatCurrency(parseFloat(item.value))}
                       </p>
                     </div>
                   ))
@@ -556,19 +531,19 @@ export default function Billing() {
                       <div className="text-right space-y-1">
                         <div className="flex gap-4">
                           <div>
-                            <p className="text-sm text-muted-foreground">Faturado</p>
+                            <p className="text-sm text-muted-foreground">Faturado e Pago</p>
                             <p className="font-medium text-green-600">
                               {formatCurrency(contract.billed_value)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Pendente</p>
+                            <p className="text-sm text-muted-foreground">Faturado e Pendente Pagto</p>
                             <p className="font-medium text-orange-600">
                               {formatCurrency(contract.pending_value)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Total</p>
+                            <p className="text-sm text-muted-foreground">Total Faturado</p>
                             <p className="font-medium">
                               {formatCurrency(contract.total_value)}
                             </p>
@@ -617,36 +592,37 @@ export default function Billing() {
                                     <div>
                                       <p className="text-xs text-muted-foreground">Número da Nota Fiscal</p>
                                       <p className="text-sm font-medium">
-                                        {/* installment.invoice_number || 'N/A' */}
-                                        N/A
+                                        {installment.invoice_number?.trim() || '—'}
                                       </p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Data de Faturamento</p>
                                       <p className="text-sm font-medium">
-                                        {/* installment.billing_date ? formatDate(installment.billing_date) : 'N/A' */}
-                                        N/A
+                                        {installment.billing_date
+                                          ? formatDate(installment.billing_date)
+                                          : '—'}
                                       </p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Prazo de Pagamento</p>
                                       <p className="text-sm font-medium">
-                                        {/* installment.payment_term || 'N/A' */}
-                                        N/A
+                                        {installment.payment_term?.trim() || '—'}
                                       </p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Data Prevista do Pagamento</p>
                                       <p className="text-sm font-medium">
-                                        {/* installment.expected_payment_date ? formatDate(installment.expected_payment_date) : 'N/A' */}
-                                        N/A
+                                        {installment.expected_payment_date
+                                          ? formatDate(installment.expected_payment_date)
+                                          : '—'}
                                       </p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Data do Pagamento</p>
                                       <p className="text-sm font-medium">
-                                        {/* installment.payment_date ? formatDate(installment.payment_date) : 'N/A' */}
-                                        N/A
+                                        {installment.payment_date
+                                          ? formatDate(installment.payment_date)
+                                          : '—'}
                                       </p>
                                     </div>
                                   </div>
@@ -665,12 +641,62 @@ export default function Billing() {
         </Card>
       )}
 
-      {/* Tabela de Parcelas */}
+      {/* Filtros da lista de faturas */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Parcelas</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Filtros</CardTitle>
+              <CardDescription>Aplicam-se à lista de faturas abaixo</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Limpar filtros
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3 items-end">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={filterBilled} onValueChange={setFilterBilled}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="true">Faturadas</SelectItem>
+                  <SelectItem value="false">Pendentes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Mês</Label>
+              <Input
+                placeholder="Ex: Jan/25"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ano</Label>
+              <Input
+                placeholder="Ex: 25"
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Lista de faturas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Faturas</CardTitle>
           <CardDescription>
-            {installments.length} parcela(s) encontrada(s)
+            {installments.length} fatura(s) encontrada(s)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -715,7 +741,20 @@ export default function Billing() {
                       </p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {!isClient && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setInstallmentToEdit(installment);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Editar
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant={installment.billed ? 'outline' : 'default'}

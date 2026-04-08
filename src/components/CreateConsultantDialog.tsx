@@ -1,5 +1,5 @@
 /**
- * Dialog para criar novo consultor
+ * Dialog para criar novo consultor (API: POST /consultants JSON; photo_url opcional)
  */
 import { useState, useEffect } from 'react';
 import {
@@ -42,6 +42,7 @@ export default function CreateConsultantDialog({
     role: '',
     contract_id: '',
     client_id: '',
+    photo_url: '',
   });
 
   useEffect(() => {
@@ -53,19 +54,19 @@ export default function CreateConsultantDialog({
         role: '',
         contract_id: '',
         client_id: '',
+        photo_url: '',
       });
     } else {
-      // Resetar quando o diálogo fechar
       setFormData({
         name: '',
         role: '',
         contract_id: '',
         client_id: '',
+        photo_url: '',
       });
     }
   }, [open]);
 
-  // Filtrar contratos baseado no cliente selecionado
   const filteredContracts = formData.client_id
     ? allContracts.filter((contract) => contract.client_id === formData.client_id)
     : [];
@@ -82,7 +83,6 @@ export default function CreateConsultantDialog({
   const fetchClients = async () => {
     try {
       const response = await api.get('/clients');
-      // Trata diferentes formatos de resposta da API
       if (Array.isArray(response.data)) {
         setClients(response.data);
       } else if (response.data?.clients) {
@@ -101,29 +101,36 @@ export default function CreateConsultantDialog({
     setLoading(true);
 
     try {
-      // Garantir que todos os campos obrigatórios estão preenchidos
-      if (!formData.name.trim() || !formData.role.trim() || !formData.contract_id.trim() || !formData.client_id.trim()) {
+      if (
+        !formData.name.trim() ||
+        !formData.role.trim() ||
+        !formData.contract_id.trim() ||
+        !formData.client_id.trim()
+      ) {
         alert('Por favor, preencha todos os campos obrigatórios.');
         setLoading(false);
         return;
       }
 
-      // Preparar dados para envio
-      const payload = {
+      const payload: Record<string, string> = {
         name: formData.name.trim(),
         role: formData.role.trim(),
         contract_id: formData.contract_id.trim(),
         client_id: formData.client_id.trim(),
       };
+      const p = formData.photo_url.trim();
+      if (p) {
+        payload.photo_url = p;
+      }
 
       await api.post('/consultants', payload);
 
-      // Resetar formulário
       setFormData({
         name: '',
         role: '',
         contract_id: '',
         client_id: '',
+        photo_url: '',
       });
 
       onSuccess();
@@ -178,10 +185,10 @@ export default function CreateConsultantDialog({
                 value={formData.client_id || undefined}
                 onValueChange={(value) => {
                   if (value && value.trim()) {
-                    setFormData({ 
-                      ...formData, 
+                    setFormData({
+                      ...formData,
                       client_id: value.trim(),
-                      contract_id: '', // Resetar contrato quando mudar cliente
+                      contract_id: '',
                     });
                   }
                 }}
@@ -207,6 +214,19 @@ export default function CreateConsultantDialog({
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="photo_url">Foto (URL, opcional)</Label>
+              <Input
+                id="photo_url"
+                type="url"
+                placeholder="https://… ou path interno"
+                value={formData.photo_url}
+                onChange={(e) =>
+                  setFormData({ ...formData, photo_url: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="contract">Contrato *</Label>
               <Select
                 value={formData.contract_id}
@@ -217,18 +237,20 @@ export default function CreateConsultantDialog({
                 disabled={!formData.client_id}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={
-                    formData.client_id 
-                      ? "Selecione um contrato" 
-                      : "Selecione um cliente primeiro"
-                  } />
+                  <SelectValue
+                    placeholder={
+                      formData.client_id
+                        ? 'Selecione um contrato'
+                        : 'Selecione um cliente primeiro'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {filteredContracts.length === 0 ? (
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                      {formData.client_id 
-                        ? "Nenhum contrato disponível para este cliente"
-                        : "Selecione um cliente primeiro"}
+                      {formData.client_id
+                        ? 'Nenhum contrato disponível para este cliente'
+                        : 'Selecione um cliente primeiro'}
                     </div>
                   ) : (
                     filteredContracts.map((contract) => (
@@ -251,7 +273,10 @@ export default function CreateConsultantDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !formData.client_id || !formData.contract_id}>
+            <Button
+              type="submit"
+              disabled={loading || !formData.client_id || !formData.contract_id}
+            >
               {loading ? 'Criando...' : 'Criar Consultor'}
             </Button>
           </DialogFooter>
@@ -260,4 +285,3 @@ export default function CreateConsultantDialog({
     </Dialog>
   );
 }
-

@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Partner } from '@/types';
 import api from '@/lib/api';
-import { Building2, Plus, CheckCircle2, XCircle } from 'lucide-react';
+import { resolveApiAssetUrl } from '@/lib/utils';
+import { Building2, Plus, CheckCircle2, XCircle, Pencil } from 'lucide-react';
 import CreatePartnerDialog from '@/components/CreatePartnerDialog';
 
 export default function Partners() {
@@ -16,6 +17,7 @@ export default function Partners() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [partnerToEdit, setPartnerToEdit] = useState<Partner | null>(null);
 
   useEffect(() => {
     fetchPartners();
@@ -56,7 +58,7 @@ export default function Partners() {
 
   const handleToggleStatus = async (partner: Partner) => {
     try {
-      await api.patch(`/partners/${partner.id}`, { is_active: !partner.is_active });
+      await api.put(`/partners/${partner.id}`, { is_active: !partner.is_active });
       fetchPartners();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao alterar status do parceiro');
@@ -89,7 +91,12 @@ export default function Partners() {
             Gerencie os parceiros do sistema. Apenas administradores globais podem acessar.
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button
+          onClick={() => {
+            setPartnerToEdit(null);
+            setDialogOpen(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Novo Parceiro
         </Button>
@@ -142,9 +149,19 @@ export default function Partners() {
                   key={partner.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                    <div>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="h-10 w-10 rounded-md border bg-muted/50 flex items-center justify-center overflow-hidden shrink-0">
+                      {resolveApiAssetUrl(partner.logo_url || partner.photo_url) ? (
+                        <img
+                          src={resolveApiAssetUrl(partner.logo_url || partner.photo_url)!}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
                       <div className="font-semibold">{partner.name}</div>
                       <div className="text-sm text-muted-foreground">
                         Criado em {new Date(partner.created_at).toLocaleDateString('pt-BR')}
@@ -171,6 +188,17 @@ export default function Partners() {
                       {partner.is_active ? 'Desativar' : 'Ativar'}
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPartnerToEdit(partner);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Editar
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDelete(partner.id, partner.name)}
@@ -188,8 +216,12 @@ export default function Partners() {
       {/* Create Dialog */}
       <CreatePartnerDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setPartnerToEdit(null);
+        }}
         onSuccess={fetchPartners}
+        partnerToEdit={partnerToEdit}
       />
     </div>
   );

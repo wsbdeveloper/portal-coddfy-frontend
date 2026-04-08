@@ -34,6 +34,10 @@ export interface Client {
   partner_id?: string | null;
   partner?: Partner;
   is_active?: boolean;
+  cnpj?: string | null;
+  razao_social?: string | null;
+  /** Logo ou foto do cliente (URL retornada pela API) */
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +50,11 @@ export interface Installment {
   billed: boolean;
   created_at: string;
   updated_at: string;
+  invoice_number?: string | null;
+  billing_date?: string | null;
+  payment_term?: string | null;
+  expected_payment_date?: string | null;
+  payment_date?: string | null;
 }
 
 export interface FeedbackHistoryItem {
@@ -64,9 +73,16 @@ export interface Consultant {
   performance_color: string;
   last_feedback_comment?: string;
   feedback_history?: FeedbackHistoryItem[];
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Valores enviados à API (contrato) */
+export type ContractTypeCode =
+  | 'body_shop_recorrente'
+  | 'time_material'
+  | 'projeto';
 
 export interface Contract {
   id: string;
@@ -83,6 +99,18 @@ export interface Contract {
   client?: Client;
   installments?: Installment[];
   consultants?: Consultant[];
+  responsible_name?: string | null;
+  payment_method?: string | null;
+  contract_type?: string | null;
+  /** API */
+  estimated_monthly_hours?: string | number | null;
+  duration_months?: string | number | null;
+  /** Legado / alias */
+  monthly_hours_estimated?: string | number | null;
+  contract_months_count?: string | number | null;
+  total_hours_contracted?: string | number | null;
+  installment_amount?: string | null;
+  installments_count?: string | number | null;
 }
 
 export interface DashboardStats {
@@ -109,6 +137,13 @@ export interface FinancialSummary {
   billed_value: string;
   balance: string;
   billed_percentage: number;
+  /** Parcelas com payment_date (API) */
+  paid_value?: string;
+  /** Parcelas com billing_date e sem payment_date */
+  pending_payment?: string;
+  pending_payment_value?: string;
+  /** max(0, total - paid - pending) — preferir quando a API enviar */
+  to_bill?: string;
 }
 
 export interface DashboardData {
@@ -141,6 +176,9 @@ export interface Partner {
   name: string;
   is_active: boolean;
   is_strategic?: boolean;
+  /** URL ou path do logo (API) */
+  logo_url?: string | null;
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -153,6 +191,8 @@ export interface Timesheet {
   hours?: number | null;
   approver?: string | null;
   approval_date?: string | null;
+  filled_at?: string | null;
+  uploaded_at?: string | null;
   created_at: string;
   updated_at: string;
   contract?: Contract;

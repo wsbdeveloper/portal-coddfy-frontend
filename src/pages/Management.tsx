@@ -30,7 +30,10 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  KeyRound,
 } from 'lucide-react';
+import { canShowResetPassword } from '@/lib/passwordResetPolicy';
+import ResetPasswordDialog from '@/components/ResetPasswordDialog';
 import CreateUserDialog from '@/components/CreateUserDialog';
 import CreatePartnerDialog from '@/components/CreatePartnerDialog';
 import CreateClientDialog from '@/components/CreateClientDialog';
@@ -64,14 +67,22 @@ export default function Management() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [userForReset, setUserForReset] = useState<User | null>(null);
 
   // Expansões
   const [expandedPartners, setExpandedPartners] = useState<Set<string>>(new Set());
 
-  // Verificar se é Admin Global
   const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isAdminGlobal = user?.role === UserRole.ADMIN_GLOBAL || user?.role === 'admin_global';
+  const loggedUser = userStr ? JSON.parse(userStr) : null;
+  const isAdminGlobal =
+    loggedUser?.role === UserRole.ADMIN_GLOBAL || loggedUser?.role === 'admin_global';
+
+  const passwordResetActor = {
+    id: String(loggedUser?.id ?? ''),
+    role: String(loggedUser?.role ?? ''),
+    partner_id: loggedUser?.partner_id ?? null,
+  };
 
   useEffect(() => {
     if (!isAdminGlobal) {
@@ -448,36 +459,36 @@ export default function Management() {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredUsers.map((user) => (
+              {filteredUsers.map((row) => (
                 <div
-                  key={user.id}
+                  key={row.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <div>
-                        <p className="font-medium">{user.username}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="font-medium">{row.username}</p>
+                        <p className="text-sm text-muted-foreground">{row.email}</p>
                       </div>
-                      <Badge variant="outline">{user.role}</Badge>
-                      {user.assignment_type && (
+                      <Badge variant="outline">{row.role}</Badge>
+                      {row.assignment_type && (
                         <Badge variant="outline" className="capitalize">
-                          {user.assignment_type === 'partner' && 'Parceiro'}
-                          {user.assignment_type === 'client' && 'Cliente'}
-                          {user.assignment_type === 'internal' && 'Interno'}
+                          {row.assignment_type === 'partner' && 'Parceiro'}
+                          {row.assignment_type === 'client' && 'Cliente'}
+                          {row.assignment_type === 'internal' && 'Interno'}
                         </Badge>
                       )}
-                      {user.partner_id && (
+                      {row.partner_id && (
                         <Badge variant="secondary">
-                          Parceiro: {partners.find((p) => p.id === user.partner_id)?.name || 'N/A'}
+                          Parceiro: {partners.find((p) => p.id === row.partner_id)?.name || 'N/A'}
                         </Badge>
                       )}
-                      {user.client && (
+                      {row.client && (
                         <Badge variant="secondary">
-                          Cliente: {user.client.name}
+                          Cliente: {row.client.name}
                         </Badge>
                       )}
-                      {user.is_active ? (
+                      {row.is_active ? (
                         <Badge variant="success" className="flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
                           Ativo
@@ -491,11 +502,24 @@ export default function Management() {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {canShowResetPassword(passwordResetActor, row) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title="Redefinir senha"
+                        onClick={() => {
+                          setUserForReset(row);
+                          setResetPasswordOpen(true);
+                        }}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setSelectedUser(user);
+                        setSelectedUser(row);
                         setEditUserDialogOpen(true);
                       }}
                     >
@@ -504,7 +528,7 @@ export default function Management() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleDeleteUser(user.id, user.username)}
+                      onClick={() => handleDeleteUser(row.id, row.username)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -764,6 +788,24 @@ export default function Management() {
         onOpenChange={setEditUserDialogOpen}
         user={selectedUser}
         onSuccess={fetchAllData}
+        actor={passwordResetActor}
+        onOpenResetPassword={() => {
+          if (selectedUser) {
+            setUserForReset(selectedUser);
+            setResetPasswordOpen(true);
+            setEditUserDialogOpen(false);
+          }
+        }}
+      />
+
+      <ResetPasswordDialog
+        open={resetPasswordOpen}
+        onOpenChange={(open) => {
+          setResetPasswordOpen(open);
+          if (!open) setUserForReset(null);
+        }}
+        targetUser={userForReset}
+        onSuccess={fetchAllData}
       />
 
       {/* Diálogo de Edição de Parceiro */}
@@ -791,11 +833,15 @@ function EditUserDialog({
   onOpenChange,
   user,
   onSuccess,
+  actor,
+  onOpenResetPassword,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: User | null;
   onSuccess: () => void;
+  actor: { id: string; role: string; partner_id?: string | null };
+  onOpenResetPassword?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -914,13 +960,29 @@ function EditUserDialog({
               </Label>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Salvando...' : 'Salvar'}
-            </Button>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
+            <div>
+              {user &&
+                onOpenResetPassword &&
+                canShowResetPassword(actor, user) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={onOpenResetPassword}
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Redefinir senha
+                  </Button>
+                )}
+            </div>
+            <div className="flex w-full justify-end gap-2 sm:w-auto">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

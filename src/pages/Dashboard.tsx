@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { DashboardData, UserRole } from '@/types';
+import { DashboardData } from '@/types';
 import api from '@/lib/api';
 import { 
   FileText, 
@@ -22,14 +22,6 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Verificar se é cliente (usuário que não é admin)
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isClient = user?.role !== UserRole.ADMIN_GLOBAL && 
-                   user?.role !== UserRole.ADMIN_PARTNER &&
-                   user?.role !== 'admin_global' &&
-                   user?.role !== 'admin_partner';
 
   useEffect(() => {
     fetchDashboardData();
@@ -136,13 +128,17 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Faturado
+              Faturado e Pago
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(parseFloat(stats.total_billed_value))}
+              {formatCurrency(
+                parseFloat(
+                  financial_summary.paid_value ?? stats.total_billed_value
+                ) || 0
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               De {formatCurrency(parseFloat(stats.total_contracts_value))}
@@ -169,57 +165,56 @@ export default function Dashboard() {
             </div>
             <Progress value={financial_summary.billed_percentage} />
           </div>
-          {isClient ? (
-            // Visão Cliente - mantém layout original
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <p className="text-sm text-muted-foreground">Valor Total</p>
-                <p className="text-2xl font-bold">
-                  {formatCurrency(parseFloat(financial_summary.total_value))}
-                </p>
+          {(() => {
+            const totalV = parseFloat(financial_summary.total_value) || 0;
+            const paidV =
+              financial_summary.paid_value != null &&
+              String(financial_summary.paid_value).trim() !== ''
+                ? parseFloat(String(financial_summary.paid_value)) || 0
+                : parseFloat(financial_summary.billed_value) || 0;
+            const pendingRaw =
+              financial_summary.pending_payment ??
+              financial_summary.pending_payment_value;
+            const pendingV =
+              pendingRaw != null && String(pendingRaw).trim() !== ''
+                ? parseFloat(String(pendingRaw)) || 0
+                : parseFloat(financial_summary.balance) || 0;
+            const toBillRaw = financial_summary.to_bill;
+            const aFaturar =
+              toBillRaw != null && String(toBillRaw).trim() !== ''
+                ? Math.max(0, parseFloat(String(toBillRaw)) || 0)
+                : Math.max(0, totalV - paidV - pendingV);
+            return (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Valor Total</p>
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(totalV)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Faturado e Pago</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(paidV)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Faturado e Pendente Pagamento
+                  </p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(pendingV)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">A Faturar</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(aFaturar)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Faturado</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(parseFloat(financial_summary.billed_value))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Saldo</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(parseFloat(financial_summary.balance))}
-                </p>
-              </div>
-            </div>
-          ) : (
-            // Visão Interna - Faturado e pago, Pendente pagamento, A faturar
-            <div className="grid gap-4 md:grid-cols-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Valor Total</p>
-                <p className="text-2xl font-bold">
-                  {formatCurrency(parseFloat(financial_summary.total_value))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Faturado e Pago</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(parseFloat(financial_summary.billed_value))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pendente Pagamento</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(parseFloat(financial_summary.balance))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">A Faturar</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(parseFloat(financial_summary.total_value) - parseFloat(financial_summary.billed_value) - parseFloat(financial_summary.balance))}
-                </p>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
 

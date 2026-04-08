@@ -52,6 +52,7 @@ export default function CreateTimesheetDialog({
     hours: '',
     approver: '',
     approval_date: '',
+    filled_at: '',
   });
 
   const isEdit = !!timesheet;
@@ -95,6 +96,20 @@ export default function CreateTimesheetDialog({
             }
           }
           
+          let filledAtFormatted = '';
+          const filledSrc =
+            timesheet.filled_at || timesheet.uploaded_at || timesheet.created_at;
+          if (filledSrc) {
+            try {
+              const dateStr = filledSrc.includes('T') ? filledSrc.split('T')[0] : filledSrc;
+              const [year, month, day] = dateStr.split('-');
+              if (year && month && day) {
+                filledAtFormatted = `${day}/${month}/${year}`;
+              }
+            } catch {
+              /* ignore */
+            }
+          }
           setFormData({
             contract_id: timesheet.contract_id || '',
             consultant_id: timesheet.consultant_id || '',
@@ -102,6 +117,7 @@ export default function CreateTimesheetDialog({
             hours: timesheet.hours?.toString() || '',
             approver: timesheet.approver || '',
             approval_date: approvalDateFormatted,
+            filled_at: filledAtFormatted,
           });
         } catch (err) {
           console.error('Erro ao inicializar formulário de edição:', err);
@@ -112,6 +128,7 @@ export default function CreateTimesheetDialog({
             hours: timesheet.hours?.toString() || '',
             approver: timesheet.approver || '',
             approval_date: '',
+            filled_at: '',
           });
         }
       } else {
@@ -123,6 +140,7 @@ export default function CreateTimesheetDialog({
           hours: '',
           approver: '',
           approval_date: '',
+          filled_at: '',
         });
         setSelectedFile(null);
       }
@@ -130,7 +148,7 @@ export default function CreateTimesheetDialog({
       // Quando fechar, limpar arquivo selecionado
       setSelectedFile(null);
     }
-  }, [open, timesheet, dataLoaded, loadingData]);
+  }, [open, timesheet, dataLoaded, loadingData, isEdit]);
 
   // Filtrar consultores quando um contrato é selecionado
   useEffect(() => {
@@ -293,6 +311,16 @@ export default function CreateTimesheetDialog({
           }
         }
 
+        if (formData.filled_at && formData.filled_at.trim() !== '') {
+          try {
+            formDataToSend.append('filled_at', parseDateToISO(formData.filled_at));
+          } catch {
+            alert('Por favor, insira uma data de preenchimento válida no formato dd/mm/yyyy.');
+            setLoading(false);
+            return;
+          }
+        }
+
         // Log para debug
         console.log('Enviando FormData com arquivo:');
         console.log('- contract_id:', formData.contract_id);
@@ -352,6 +380,15 @@ export default function CreateTimesheetDialog({
             return;
           }
         }
+        if (formData.filled_at?.trim()) {
+          try {
+            payload.filled_at = parseDateToISO(formData.filled_at);
+          } catch {
+            alert('Por favor, insira uma data de preenchimento válida no formato dd/mm/yyyy.');
+            setLoading(false);
+            return;
+          }
+        }
 
         console.log('Enviando payload JSON:', payload);
 
@@ -374,6 +411,7 @@ export default function CreateTimesheetDialog({
         hours: '',
         approver: '',
         approval_date: '',
+        filled_at: '',
       });
       setSelectedFile(null);
 
@@ -562,6 +600,21 @@ export default function CreateTimesheetDialog({
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
                   setFormData({ ...formData, approval_date: formatted });
+                }}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="filled_at">Data de preenchimento (opcional, dd/mm/yyyy)</Label>
+              <Input
+                id="filled_at"
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={formData.filled_at}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setFormData({ ...formData, filled_at: formatted });
                 }}
               />
             </div>

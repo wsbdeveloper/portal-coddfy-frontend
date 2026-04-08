@@ -11,6 +11,7 @@ import api from '@/lib/api';
 import { getFeedbackColor } from '@/lib/format';
 import { getCurrentUser, isClientUser, getCurrentUserClientId, isAdminGlobal } from '@/lib/auth';
 import { Users, Plus, TrendingUp, ChevronDown, ChevronUp, UserCircle, Star, Trash2 } from 'lucide-react';
+import { resolveApiAssetUrl } from '@/lib/utils';
 import CreateConsultantDialog from '@/components/CreateConsultantDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -253,25 +254,56 @@ export default function Consultants() {
                     alert('Por favor, preencha o comentário.');
                     return;
                   }
-                  
-                  if (selectedConsultantId && contractId) {
-                    await api.post(`/feedbacks`, { 
-                      rating: parseInt(feedbackValue), 
-                      comment: feedbackComment.trim(), 
-                      consultant_id: selectedConsultantId,
-                      contract_id: contractId
-                    });
-                    alert('Feedback criado com sucesso!');
-                    setFeedbackDialogOpen(false);
-                    setSelectedConsultantId(null);
-                    setSelectedConsultantName('');
-                    setFeedbackValue('85');
-                    setFeedbackComment('');
-                    setContractId(null);
-                    setContractName('');
-                    // Recarregar consultores para atualizar feedbacks
-                    await fetchConsultants();
+                  if (!selectedConsultantId) return;
+
+                  const rating = parseInt(feedbackValue, 10);
+                  const comment = feedbackComment.trim();
+                  const attempts: Array<() => Promise<unknown>> = [
+                    () =>
+                      api.post('/feedbacks', {
+                        consultant_id: selectedConsultantId,
+                        comment,
+                        rating,
+                        ...(contractId ? { contract_id: contractId } : {}),
+                      }),
+                    () =>
+                      api.post('/feedbacks', {
+                        consultant_id: selectedConsultantId,
+                        comment,
+                        rating,
+                      }),
+                    () =>
+                      api.post(`/consultants/${selectedConsultantId}/feedbacks`, {
+                        comment,
+                        rating,
+                        ...(contractId ? { contract_id: contractId } : {}),
+                      }),
+                  ];
+
+                  let lastErr: unknown;
+                  for (const run of attempts) {
+                    try {
+                      await run();
+                      alert('Feedback criado com sucesso!');
+                      setFeedbackDialogOpen(false);
+                      setSelectedConsultantId(null);
+                      setSelectedConsultantName('');
+                      setFeedbackValue('85');
+                      setFeedbackComment('');
+                      setContractId(null);
+                      setContractName('');
+                      await fetchConsultants();
+                      return;
+                    } catch (e) {
+                      lastErr = e;
+                    }
                   }
+                  const err = lastErr as any;
+                  alert(
+                    err?.response?.data?.error ||
+                      err?.response?.data?.detail ||
+                      'Erro ao criar feedback'
+                  );
                 } catch (err: any) {
                   alert(err.response?.data?.error || 'Erro ao criar feedback');
                 }
@@ -323,8 +355,16 @@ export default function Consultants() {
                       >
                         <div className="flex-1 flex items-center gap-3">
                           {/* Foto do consultor */}
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <UserCircle className="h-6 w-6 text-primary" />
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
+                            {resolveApiAssetUrl(consultant.photo_url) ? (
+                              <img
+                                src={resolveApiAssetUrl(consultant.photo_url)!}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <UserCircle className="h-6 w-6 text-primary" />
+                            )}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">

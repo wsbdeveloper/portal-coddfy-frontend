@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Client, UserRole } from '@/types';
 import api from '@/lib/api';
 import { filterByPartner } from '@/lib/auth';
-import { UserCircle, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { resolveApiAssetUrl } from '@/lib/utils';
+import { UserCircle, Plus, Trash2, CheckCircle2, XCircle, Pencil } from 'lucide-react';
 import CreateClientDialog from '@/components/CreateClientDialog';
 
 export default function Clients() {
@@ -17,6 +18,7 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
 
   // Verificar se o usuário é admin
   const userStr = localStorage.getItem('user');
@@ -81,7 +83,7 @@ export default function Clients() {
     const currentStatus = client.is_active === undefined || client.is_active === null ? true : client.is_active;
     const newStatus = !currentStatus;
     try {
-      await api.patch(`/clients/${client.id}`, { is_active: newStatus });
+      await api.put(`/clients/${client.id}`, { is_active: newStatus });
       fetchClients();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao alterar status do cliente');
@@ -114,7 +116,12 @@ export default function Clients() {
             Gerencie os clientes do sistema. Apenas administradores podem acessar.
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button
+          onClick={() => {
+            setClientToEdit(null);
+            setDialogOpen(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Novo Cliente
         </Button>
@@ -155,9 +162,19 @@ export default function Clients() {
                   key={client.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
-                    <UserCircle className="h-5 w-5 text-muted-foreground" />
-                    <div>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="h-10 w-10 rounded-md border bg-muted/50 flex items-center justify-center overflow-hidden shrink-0">
+                      {resolveApiAssetUrl(client.photo_url) ? (
+                        <img
+                          src={resolveApiAssetUrl(client.photo_url)!}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <UserCircle className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
                       <div className="font-semibold">{client.name}</div>
                       <div className="text-sm text-muted-foreground">
                         {client.partner ? `Parceiro: ${client.partner.name}` : client.partner_id ? `Parceiro ID: ${client.partner_id}` : 'Sem parceiro associado'}
@@ -187,6 +204,17 @@ export default function Clients() {
                       {(client.is_active === undefined || client.is_active === null || client.is_active === true) ? 'Desativar' : 'Ativar'}
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setClientToEdit(client);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Editar
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDelete(client.id, client.name)}
@@ -205,8 +233,12 @@ export default function Clients() {
       {/* Create Dialog */}
       <CreateClientDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setClientToEdit(null);
+        }}
         onSuccess={fetchClients}
+        clientToEdit={clientToEdit}
       />
     </div>
   );

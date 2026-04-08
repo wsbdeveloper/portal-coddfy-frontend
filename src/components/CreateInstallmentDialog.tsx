@@ -25,16 +25,38 @@ import api from '@/lib/api';
 import { formatDateInput, parseDateToISO } from '@/lib/format';
 import { filterContractsByPartner } from '@/lib/auth';
 
+export interface InstallmentEditShape {
+  id: string;
+  contract_id: string;
+  month: string;
+  value: string;
+  invoice_number?: string | null;
+  billing_date?: string | null;
+  payment_term?: string | null;
+  expected_payment_date?: string | null;
+  payment_date?: string | null;
+}
+
 interface CreateInstallmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  installmentToEdit?: InstallmentEditShape | null;
+}
+
+function isoToDdMmYyyy(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const s = iso.includes('T') ? iso.split('T')[0] : iso;
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return '';
+  return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
 }
 
 export default function CreateInstallmentDialog({
   open,
   onOpenChange,
   onSuccess,
+  installmentToEdit,
 }: CreateInstallmentDialogProps) {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,25 +71,41 @@ export default function CreateInstallmentDialog({
     payment_date: '',
   });
 
+  const isEdit = !!installmentToEdit?.id;
+
   useEffect(() => {
     if (open) {
       fetchContracts();
-      // Preenche com mês atual e reseta outros campos
       const now = new Date();
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const currentMonth = `${monthNames[now.getMonth()]}/${now.getFullYear().toString().slice(-2)}`;
-      setFormData({
-        contract_id: '',
-        month: currentMonth,
-        value: '',
-        invoice_number: '',
-        billing_date: '',
-        payment_term: '',
-        expected_payment_date: '',
-        payment_date: '',
-      });
+
+      if (installmentToEdit) {
+        const row = installmentToEdit;
+        setFormData({
+          contract_id: row.contract_id,
+          month: row.month,
+          value: row.value,
+          invoice_number: row.invoice_number?.trim() || '',
+          billing_date: isoToDdMmYyyy(row.billing_date || undefined),
+          payment_term: row.payment_term?.trim() || '',
+          expected_payment_date: isoToDdMmYyyy(row.expected_payment_date || undefined),
+          payment_date: isoToDdMmYyyy(row.payment_date || undefined),
+        });
+      } else {
+        setFormData({
+          contract_id: '',
+          month: currentMonth,
+          value: '',
+          invoice_number: '',
+          billing_date: '',
+          payment_term: '',
+          expected_payment_date: '',
+          payment_date: '',
+        });
+      }
     }
-  }, [open]);
+  }, [open, installmentToEdit]);
 
   const fetchContracts = async () => {
     try {
@@ -140,17 +178,19 @@ export default function CreateInstallmentDialog({
         }
       }
 
-      console.log('Enviando payload:', payload);
-      console.log('Payload JSON:', JSON.stringify(payload));
-      
-      const response = await api.post('/installments', payload);
-      console.log('Resposta da API:', response.data);
+      if (isEdit && installmentToEdit) {
+        const { contract_id: _omitContract, ...patchBody } = payload;
+        await api.put(`/installments/${installmentToEdit.id}`, patchBody);
+        alert('Fatura atualizada com sucesso!');
+      } else {
+        await api.post('/installments', payload);
+        alert('Parcela criada com sucesso!');
+      }
 
-      // Resetar formulário
       const now = new Date();
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const currentMonth = `${monthNames[now.getMonth()]}/${now.getFullYear().toString().slice(-2)}`;
-      
+
       setFormData({
         contract_id: '',
         month: currentMonth,
@@ -161,18 +201,10 @@ export default function CreateInstallmentDialog({
         expected_payment_date: '',
         payment_date: '',
       });
-
-      alert('Parcela criada com sucesso!');
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      console.error('Erro completo ao criar parcela:', err);
-      console.error('Resposta do erro:', err.response?.data);
-      console.error('Status do erro:', err.response?.status);
-      console.error('Headers do erro:', err.response?.headers);
-      console.error('Payload enviado:', payload);
-      
-      let errorMessage = 'Erro ao criar parcela';
+      let errorMessage = isEdit ? 'Erro ao atualizar fatura' : 'Erro ao criar parcela';
       
       if (err.response?.data) {
         if (typeof err.response.data === 'string') {
@@ -198,7 +230,7 @@ export default function CreateInstallmentDialog({
         errorMessage = err.message;
       }
       
-      alert(`Erro ao criar parcela:\n\n${errorMessage}`);
+      alert(`${isEdit ? 'Erro ao atualizar fatura' : 'Erro ao criar parcela'}:\n\n${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -230,9 +262,11 @@ export default function CreateInstallmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>Criar Nova Parcela</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar Fatura' : 'Criar Nova Parcela'}</DialogTitle>
           <DialogDescription>
-            Adicione uma parcela de faturamento a um contrato.
+            {isEdit
+              ? 'Atualize os dados da fatura.'
+              : 'Adicione uma parcela de faturamento a um contrato.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -245,6 +279,7 @@ export default function CreateInstallmentDialog({
                   setFormData({ ...formData, contract_id: value })
                 }
                 required
+                disabled={isEdit}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um contrato" />
@@ -272,11 +307,18 @@ export default function CreateInstallmentDialog({
                   <SelectValue placeholder="Selecione o mês" />
                 </SelectTrigger>
                 <SelectContent>
-                  {generateNextMonths().map((month) => (
-                    <SelectItem key={month} value={month}>
-                      {month}
-                    </SelectItem>
-                  ))}
+                  {(() => {
+                    const base = generateNextMonths();
+                    const opts =
+                      isEdit && formData.month && !base.includes(formData.month)
+                        ? [formData.month, ...base]
+                        : base;
+                    return opts.map((month) => (
+                      <SelectItem key={month} value={month}>
+                        {month}
+                      </SelectItem>
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -379,7 +421,7 @@ export default function CreateInstallmentDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Criando...' : 'Criar Parcela'}
+              {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Criar Parcela'}
             </Button>
           </DialogFooter>
         </form>
