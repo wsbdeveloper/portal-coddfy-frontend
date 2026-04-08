@@ -58,7 +58,17 @@ export default function Partners() {
 
   const handleToggleStatus = async (partner: Partner) => {
     try {
-      await api.put(`/partners/${partner.id}`, { is_active: !partner.is_active });
+      // PUT exige os mesmos campos que a edição (name, is_strategic); só is_active → 400 "dados inválidos"
+      const logoTrim = (partner.logo_url || partner.photo_url || '').trim();
+      const body: Record<string, unknown> = {
+        name: partner.name.trim(),
+        is_strategic: Boolean(partner.is_strategic),
+        is_active: !partner.is_active,
+      };
+      if (logoTrim) {
+        body.logo_url = logoTrim.slice(0, 500);
+      }
+      await api.put(`/partners/${partner.id}`, body);
       fetchPartners();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao alterar status do parceiro');
