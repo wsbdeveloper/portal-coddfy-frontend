@@ -251,6 +251,20 @@ if ($domainTest.Server -like "*nginx*" -and $localDnsIp -ne $vmIp) {
 }
 
 if (-not $SkipProxyCheck) {
+    if (-not $publicDnsIp) {
+        Write-Host "    ERRO: nao existe registro A publico para $Domain" -ForegroundColor Red
+        Write-Host "    O Lets Encrypt nao consegue validar sem esse registro." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "    No painel Locaweb (DNS de coddfy.com.br), crie:" -ForegroundColor Yellow
+        Write-Host "      Tipo:  A" -ForegroundColor Yellow
+        Write-Host "      Nome:  portal" -ForegroundColor Yellow
+        Write-Host "      Valor: $vmIp" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "    Aguarde propagacao (5-30 min) e teste:" -ForegroundColor Yellow
+        Write-Host "      nslookup $Domain 8.8.8.8" -ForegroundColor Yellow
+        throw "Registro A ausente no DNS publico."
+    }
+
     if ($vmIp -and $publicDnsIp -ne $vmIp) {
         Write-Host "    ERRO: DNS publico nao aponta para esta VM." -ForegroundColor Red
         Write-Host "    Ajuste o registro A na LocalWeb para $vmIp" -ForegroundColor Red
