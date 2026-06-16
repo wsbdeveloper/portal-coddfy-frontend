@@ -8,8 +8,14 @@
           <match url="(.*)" />
           <conditions>
             <add input="{HTTPS}" pattern="off" ignoreCase="true" />
+            <add input="{REQUEST_URI}" pattern="^/\.well-known/acme-challenge/" negate="true" />
           </conditions>
           <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
+        </rule>
+
+        <rule name="ACME challenge" stopProcessing="true">
+          <match url="^\.well-known/acme-challenge/(.*)" />
+          <action type="None" />
         </rule>
 
         <!-- API -> backend Docker (requer ARR + URL Rewrite) -->

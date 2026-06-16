@@ -156,23 +156,31 @@ if (-not (Test-Path $WacsExe)) {
 $siteId = (Get-Website -Name $SiteName).Id
 
 Write-Host ""
-Write-Host '==> Emitindo certificado SSL'
+Write-Host '==> Emitindo certificado SSL (Lets Encrypt via win-acme)'
+
+$wacsCommon = @(
+    "--store", "certificatestore",
+    "--installation", "iis",
+    "--installationsiteid", $siteId,
+    "--sslport", "443",
+    "--emailaddress", $Email,
+    "--accepttos",
+    "--verbose"
+)
 
 $wacsOk = $false
 $prev = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 
-# Tentativa 1: validacao via IIS
-& $WacsExe --target iis --siteid $siteId --host $Domain --installation iis `
-    --installationsiteid $siteId --emailaddress $Email --accepttos --verbose
+# Tentativa 1: validacao HTTP-01 via pasta do site (IIS na porta 80)
+Write-Host "    [1/2] Validacao filesystem em $SitePath ..."
+& $WacsExe --source manual --host $Domain --validation filesystem --webroot $SitePath @wacsCommon
 if ($LASTEXITCODE -eq 0) { $wacsOk = $true }
 
-# Tentativa 2: validacao via pasta do site
+# Tentativa 2: plugin IIS + selfhosting
 if (-not $wacsOk) {
-    Write-Host "    Tentando validacao filesystem em $SitePath ..."
-    & $WacsExe --source manual --host $Domain --validation filesystem --webroot $SitePath `
-        --store certificatestore --installation iis --installationsiteid $siteId `
-        --emailaddress $Email --accepttos --verbose
+    Write-Host "    [2/2] Validacao via plugin IIS ..."
+    & $WacsExe --source iis --siteid $siteId --host $Domain --validation selfhosting @wacsCommon
     if ($LASTEXITCODE -eq 0) { $wacsOk = $true }
 }
 

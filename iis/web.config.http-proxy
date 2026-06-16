@@ -3,6 +3,10 @@
   <system.webServer>
     <rewrite>
       <rules>
+        <rule name="ACME challenge" stopProcessing="true">
+          <match url="^\.well-known/acme-challenge/(.*)" />
+          <action type="None" />
+        </rule>
         <rule name="API Proxy" stopProcessing="true">
           <match url="^api/(.*)" />
           <action type="Rewrite" url="http://127.0.0.1:6543/api/{R:1}" />
