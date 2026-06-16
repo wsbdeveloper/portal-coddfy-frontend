@@ -47,7 +47,15 @@ function Get-WinAcmeDownloadUrl {
 
 function Install-WinAcme {
     New-Item -ItemType Directory -Force -Path $WacsDir | Out-Null
-    if (Test-Path $WacsExe) { return }
+
+    $existing = Get-ChildItem -Path $WacsDir -Filter "wacs.exe" -Recurse -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($existing) {
+        if ([System.IO.Path]::GetFullPath($existing.FullName) -ne [System.IO.Path]::GetFullPath($WacsExe)) {
+            Copy-Item $existing.FullName $WacsExe -Force
+        }
+        return
+    }
 
     $url = Get-WinAcmeDownloadUrl
     Write-Host "    URL: $url"
@@ -79,7 +87,9 @@ Baixe manualmente no servidor:
     if (-not $extracted) {
         throw "wacs.exe nao encontrado apos extrair $WacsZip"
     }
-    Copy-Item $extracted.FullName $WacsExe -Force
+    if ([System.IO.Path]::GetFullPath($extracted.FullName) -ne [System.IO.Path]::GetFullPath($WacsExe)) {
+        Copy-Item $extracted.FullName $WacsExe -Force
+    }
 }
 
 function Get-VmPublicIp {
