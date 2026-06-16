@@ -1,0 +1,82 @@
+#Requires -RunAsAdministrator
+$ErrorActionPreference = "Stop"
+
+$SiteName = "CoddfyPortal"
+$DefaultSiteName = "Default Web Site"
+$SitePath = "C:\inetpub\coddfy-portal"
+$Port = 80
+
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$WebConfigSource = Join-Path $RepoRoot "iis\web.config.static"
+
+function Get-ServerIp {
+    $ip = Get-NetIPAddress -AddressFamily IPv4 |
+        Where-Object {
+            $_.IPAddress -notlike "127.*" -and
+            $_.IPAddress -notlike "169.254.*" -and
+            $_.PrefixOrigin -ne "WellKnown"
+        } |
+        Select-Object -First 1 -ExpandProperty IPAddress
+
+    if ($ip) { return $ip }
+    return "localhost"
+}
+
+Write-Host "==> Criando pasta: $SitePath"
+New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
+
+if (-not (Test-Path (Join-Path $SitePath "index.html"))) {
+    $serverIp = Get-ServerIp
+    $apiUrl = "http://${serverIp}:6543/api"
+    Write-Host "==> Gerando build estatico (API: $apiUrl)"
+
+    Push-Location $RepoRoot
+    try {
+        docker build --build-arg VITE_API_URL=$apiUrl -t coddfy-frontend-static .
+        docker rm -f coddfy_fe_extract 2>$null | Out-Null
+        docker create --name coddfy_fe_extract coddfy-frontend-static | Out-Null
+        docker cp coddfy_fe_extract:/usr/share/nginx/html/. $SitePath
+        docker rm -f coddfy_fe_extract | Out-Null
+    } finally {
+        Pop-Location
+    }
+}
+
+Write-Host "==> Copiando web.config (SPA, sem proxy ARR)"
+Copy-Item -Path $WebConfigSource -Destination (Join-Path $SitePath "web.config") -Force
+
+Import-Module WebAdministration
+
+Write-Host "==> Parando Default Web Site e liberando porta 80"
+Stop-Website -Name $DefaultSiteName -ErrorAction SilentlyContinue
+Remove-WebBinding -Name $DefaultSiteName -BindingInformation "*:80:" -Protocol "http" -ErrorAction SilentlyContinue
+
+Get-Website | ForEach-Object {
+    $otherSite = $_.Name
+    if ($otherSite -eq $SiteName) { return }
+    Get-WebBinding -Name $otherSite | Where-Object {
+        $_.protocol -eq "http" -and $_.bindingInformation -match ":$Port`:"
+    } | ForEach-Object {
+        Write-Host "    Removendo $($_.bindingInformation) de '$otherSite'"
+        Remove-WebBinding -Name $otherSite -BindingInformation $_.bindingInformation -Protocol $_.protocol
+    }
+}
+
+$site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
+if ($site) {
+    Write-Host "==> Atualizando site $SiteName"
+    Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $SitePath
+} else {
+    Write-Host "==> Criando site $SiteName na porta $Port"
+    New-Website -Name $SiteName -PhysicalPath $SitePath -Port $Port | Out-Null
+}
+
+Start-Website -Name $SiteName
+
+Write-Host ""
+Write-Host "OK - Frontend no IIS porta 80 (sem ARR)"
+Write-Host "API direta em: http://$(Get-ServerIp):6543/api"
+Write-Host ""
+Write-Host "IMPORTANTE: atualize CORS no backend (coddfy/docker-compose.yml):"
+Write-Host "  CORS_ORIGINS=http://localhost,http://$(Get-ServerIp)"
+Write-Host "Depois: cd coddfy && docker-compose up -d"
