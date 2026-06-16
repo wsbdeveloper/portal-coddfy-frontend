@@ -1,7 +1,8 @@
 #Requires -RunAsAdministrator
 param(
     [switch]$ForceRebuild,
-    [string]$PublicHost = ""
+    [string]$PublicHost = "",
+    [string]$ApiUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +68,7 @@ function Get-PublicHost {
 function Assert-BuiltApiUrl {
     param(
         [string]$SitePath,
-        [string]$ExpectedHost
+        [string]$ExpectedToken
     )
 
     $jsFiles = Get-ChildItem -Path (Join-Path $SitePath "assets") -Filter "*.js" -ErrorAction SilentlyContinue
@@ -78,7 +79,7 @@ function Assert-BuiltApiUrl {
     $found = $false
     foreach ($file in $jsFiles) {
         $content = Get-Content $file.FullName -Raw
-        if ($content -match [regex]::Escape($ExpectedHost)) {
+        if ($content -match [regex]::Escape($ExpectedToken)) {
             $found = $true
         }
         if ($content -match '172\.(1[6-9]|2[0-9]|3[0-1])\.' -or $content -match '192\.168\.' -or $content -match '10\.\d+\.') {
@@ -87,10 +88,10 @@ function Assert-BuiltApiUrl {
     }
 
     if (-not $found) {
-        throw "Build nao contem API URL com host '$ExpectedHost'. Rode novamente com -ForceRebuild -PublicHost $ExpectedHost"
+        throw "Build nao contem API URL '$ExpectedToken'. Rode novamente com -ForceRebuild"
     }
 
-    Write-Host "    Build OK: API aponta para $ExpectedHost"
+    Write-Host "    Build OK: API = $ExpectedToken"
 }
 
 function Remove-DockerContainer {
@@ -166,19 +167,26 @@ New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
 
 $needsBuild = $ForceRebuild -or -not (Test-Path (Join-Path $SitePath "index.html"))
 if ($needsBuild) {
-    $publicHost = Get-PublicHost -Override $PublicHost
-    $apiUrl = "http://${publicHost}:6543/api"
-    Write-Host "==> Gerando build estatico (API publica: $apiUrl)"
+    if ($ApiUrl) {
+        $buildApiUrl = $ApiUrl
+        $verifyToken = $ApiUrl
+        $publicHost = if ($PublicHost) { $PublicHost } else { "same-origin" }
+    } else {
+        $publicHost = Get-PublicHost -Override $PublicHost
+        $buildApiUrl = "http://${publicHost}:6543/api"
+        $verifyToken = $publicHost
+    }
+    Write-Host "==> Gerando build estatico (API: $buildApiUrl)"
 
     Push-Location $RepoRoot
     try {
-        docker build --build-arg VITE_API_URL=$apiUrl -t coddfy-frontend-static .
+        docker build --build-arg VITE_API_URL=$buildApiUrl -t coddfy-frontend-static .
         Remove-DockerContainer "coddfy_fe_extract"
         docker create --name coddfy_fe_extract coddfy-frontend-static | Out-Null
         Get-ChildItem -Path $SitePath -Force | Remove-Item -Recurse -Force
         docker cp coddfy_fe_extract:/usr/share/nginx/html/. $SitePath
         Remove-DockerContainer "coddfy_fe_extract"
-        Assert-BuiltApiUrl -SitePath $SitePath -ExpectedHost $publicHost
+        Assert-BuiltApiUrl -SitePath $SitePath -ExpectedToken $verifyToken
     } finally {
         Pop-Location
     }
@@ -215,14 +223,18 @@ if (Test-IisWebsite $SiteName) {
     throw "Falha ao criar site IIS '$SiteName'"
 }
 
-$publicHost = Get-PublicHost -Override $PublicHost
+$displayHost = if ($PublicHost) { $PublicHost } else { Get-PublicHost -Override "" }
 Write-Host ""
 Write-Host "OK - Frontend publicado no IIS porta 80"
-Write-Host "URL: http://$publicHost"
-Write-Host "API: http://${publicHost}:6543/api"
+Write-Host "URL: http://$displayHost"
+if ($ApiUrl -eq "/api") {
+    Write-Host "API: https://$displayHost/api (via proxy IIS)"
+} else {
+    Write-Host "API: http://${displayHost}:6543/api"
+}
 Write-Host ""
 Write-Host "CORS no backend (coddfy/docker-compose.yml):"
-Write-Host "  CORS_ORIGINS=http://localhost,http://$publicHost"
+Write-Host "  CORS_ORIGINS=http://localhost,http://$displayHost"
 Write-Host ""
 Write-Host "Firewall:"
 Write-Host "  powershell -ExecutionPolicy Bypass -File .\iis\open-firewall.ps1"
