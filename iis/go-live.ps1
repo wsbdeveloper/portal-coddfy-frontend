@@ -1,6 +1,6 @@
 #Requires -RunAsAdministrator
 param(
-    [string]$PublicHost = "20.197.240.231"
+    [string]$PublicHost = "portal.coddfy.com.br"
 )
 
 $ErrorActionPreference = "Stop"

@@ -1,7 +1,6 @@
 #Requires -RunAsAdministrator
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$Domain,
+    [string]$Domain = "portal.coddfy.com.br",
 
     [string]$Email = "admin@coddfy.com"
 )
