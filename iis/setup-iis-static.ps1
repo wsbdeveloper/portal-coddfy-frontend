@@ -26,10 +26,28 @@ function Get-ServerPrivateIp {
     return "localhost"
 }
 
+function Test-PrivateIp {
+    param([string]$HostOrIp)
+
+    if ($HostOrIp -match '^\d+\.\d+\.\d+\.\d+$') {
+        $octets = $HostOrIp.Split('.').ForEach([int])
+        if ($octets[0] -eq 10) { return $true }
+        if ($octets[0] -eq 192 -and $octets[1] -eq 168) { return $true }
+        if ($octets[0] -eq 172 -and $octets[1] -ge 16 -and $octets[1] -le 31) { return $true }
+    }
+
+    return $false
+}
+
 function Get-PublicHost {
     param([string]$Override)
 
-    if ($Override) { return $Override.Trim() }
+    if ($Override) {
+        if (Test-PrivateIp $Override) {
+            throw "PublicHost nao pode ser IP privado ($Override). Use o IP publico, ex: 20.197.240.231"
+        }
+        return $Override.Trim()
+    }
 
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
@@ -43,7 +61,36 @@ function Get-PublicHost {
         $ErrorActionPreference = $prev
     }
 
-    return Get-ServerPrivateIp
+    throw "Nao foi possivel detectar IP publico. Rode com: -PublicHost 20.197.240.231"
+}
+
+function Assert-BuiltApiUrl {
+    param(
+        [string]$SitePath,
+        [string]$ExpectedHost
+    )
+
+    $jsFiles = Get-ChildItem -Path (Join-Path $SitePath "assets") -Filter "*.js" -ErrorAction SilentlyContinue
+    if (-not $jsFiles) {
+        throw "Build sem arquivos JS em $SitePath\assets"
+    }
+
+    $found = $false
+    foreach ($file in $jsFiles) {
+        $content = Get-Content $file.FullName -Raw
+        if ($content -match [regex]::Escape($ExpectedHost)) {
+            $found = $true
+        }
+        if ($content -match '172\.(1[6-9]|2[0-9]|3[0-1])\.' -or $content -match '192\.168\.' -or $content -match '10\.\d+\.') {
+            Write-Warning "Build contem IP privado em $($file.Name). Rebuild com -PublicHost correto."
+        }
+    }
+
+    if (-not $found) {
+        throw "Build nao contem API URL com host '$ExpectedHost'. Rode novamente com -ForceRebuild -PublicHost $ExpectedHost"
+    }
+
+    Write-Host "    Build OK: API aponta para $ExpectedHost"
 }
 
 function Remove-DockerContainer {
@@ -131,6 +178,7 @@ if ($needsBuild) {
         Get-ChildItem -Path $SitePath -Force | Remove-Item -Recurse -Force
         docker cp coddfy_fe_extract:/usr/share/nginx/html/. $SitePath
         Remove-DockerContainer "coddfy_fe_extract"
+        Assert-BuiltApiUrl -SitePath $SitePath -ExpectedHost $publicHost
     } finally {
         Pop-Location
     }
