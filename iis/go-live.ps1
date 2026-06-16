@@ -6,8 +6,10 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 Write-Host "==> Parando frontend Docker na porta 8080"
 Push-Location $RepoRoot
 try {
-    docker compose down 2>$null | Out-Null
-    docker rm -f ccm_frontend 2>$null | Out-Null
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    docker compose down | Out-Null
+    $ErrorActionPreference = $prev
 } finally {
     Pop-Location
 }
@@ -16,7 +18,10 @@ try {
 
 Write-Host ""
 Write-Host "==> Reiniciando IIS"
+$prev = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 iisreset /noforce | Out-Null
+$ErrorActionPreference = $prev
 
 Write-Host ""
 Write-Host "==> Verificando porta 80"

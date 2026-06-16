@@ -26,8 +26,24 @@ function Get-ServerIp {
     return "localhost"
 }
 
+function Remove-DockerContainer {
+    param([string]$Name)
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        $id = docker ps -aq -f "name=$Name"
+        if ($id) {
+            docker rm -f $Name | Out-Null
+            Write-Host "    Container $Name removido"
+        }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 Write-Host "==> Parando container Docker frontend (se existir)"
-docker rm -f ccm_frontend 2>$null | Out-Null
+Remove-DockerContainer "ccm_frontend"
 
 Write-Host "==> Criando pasta: $SitePath"
 New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
@@ -41,11 +57,11 @@ if ($needsBuild) {
     Push-Location $RepoRoot
     try {
         docker build --build-arg VITE_API_URL=$apiUrl -t coddfy-frontend-static .
-        docker rm -f coddfy_fe_extract 2>$null | Out-Null
+        Remove-DockerContainer "coddfy_fe_extract"
         docker create --name coddfy_fe_extract coddfy-frontend-static | Out-Null
         Get-ChildItem -Path $SitePath -Force | Remove-Item -Recurse -Force
         docker cp coddfy_fe_extract:/usr/share/nginx/html/. $SitePath
-        docker rm -f coddfy_fe_extract | Out-Null
+        Remove-DockerContainer "coddfy_fe_extract"
     } finally {
         Pop-Location
     }
