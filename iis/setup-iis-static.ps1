@@ -1,6 +1,7 @@
 #Requires -RunAsAdministrator
 param(
-    [switch]$ForceRebuild
+    [switch]$ForceRebuild,
+    [string]$PublicHost = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +13,7 @@ $Port = 80
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $WebConfigSource = Join-Path $RepoRoot "iis\web.config.static"
 
-function Get-ServerIp {
+function Get-ServerPrivateIp {
     $ip = Get-NetIPAddress -AddressFamily IPv4 |
         Where-Object {
             $_.IPAddress -notlike "127.*" -and
@@ -23,6 +24,26 @@ function Get-ServerIp {
 
     if ($ip) { return $ip }
     return "localhost"
+}
+
+function Get-PublicHost {
+    param([string]$Override)
+
+    if ($Override) { return $Override.Trim() }
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        $azureIp = Invoke-RestMethod `
+            -Uri "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2021-02-01&format=text" `
+            -Headers @{ Metadata = "true" } `
+            -TimeoutSec 3
+        if ($azureIp) { return $azureIp.Trim() }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+
+    return Get-ServerPrivateIp
 }
 
 function Remove-DockerContainer {
@@ -98,9 +119,9 @@ New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
 
 $needsBuild = $ForceRebuild -or -not (Test-Path (Join-Path $SitePath "index.html"))
 if ($needsBuild) {
-    $serverIp = Get-ServerIp
-    $apiUrl = "http://${serverIp}:6543/api"
-    Write-Host "==> Gerando build estatico (API: $apiUrl)"
+    $publicHost = Get-PublicHost -Override $PublicHost
+    $apiUrl = "http://${publicHost}:6543/api"
+    Write-Host "==> Gerando build estatico (API publica: $apiUrl)"
 
     Push-Location $RepoRoot
     try {
@@ -146,11 +167,15 @@ if (Test-IisWebsite $SiteName) {
     throw "Falha ao criar site IIS '$SiteName'"
 }
 
-$serverIp = Get-ServerIp
+$publicHost = Get-PublicHost -Override $PublicHost
 Write-Host ""
 Write-Host "OK - Frontend publicado no IIS porta 80"
-Write-Host "URL: http://$serverIp"
-Write-Host "API: http://${serverIp}:6543/api"
+Write-Host "URL: http://$publicHost"
+Write-Host "API: http://${publicHost}:6543/api"
 Write-Host ""
 Write-Host "CORS no backend (coddfy/docker-compose.yml):"
-Write-Host "  CORS_ORIGINS=http://localhost,http://$serverIp"
+Write-Host "  CORS_ORIGINS=http://localhost,http://$publicHost"
+Write-Host ""
+Write-Host "Firewall:"
+Write-Host "  powershell -ExecutionPolicy Bypass -File .\iis\open-firewall.ps1"
+Write-Host "  Azure Portal -> VM -> Networking -> Add inbound rule (80, 6543)"

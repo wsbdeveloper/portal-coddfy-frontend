@@ -1,4 +1,8 @@
 #Requires -RunAsAdministrator
+param(
+    [string]$PublicHost = "20.197.240.231"
+)
+
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -14,7 +18,8 @@ try {
     Pop-Location
 }
 
-& (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild
+& (Join-Path $PSScriptRoot "open-firewall.ps1")
+& (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild -PublicHost $PublicHost
 
 Write-Host ""
 Write-Host "==> Reiniciando IIS"
@@ -33,4 +38,4 @@ Get-Website | ForEach-Object {
 }
 
 Write-Host ""
-Write-Host "Acesse: http://localhost  (sem :8080)"
+Write-Host "Acesse: http://$PublicHost"
