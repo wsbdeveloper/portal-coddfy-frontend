@@ -27,8 +27,8 @@ Write-Host ""
 Write-Host '==> Publicando frontend com API em /api - mesmo dominio, sem mixed content'
 & (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild -PublicHost $Domain -ApiUrl "/api"
 
-# Troca web.config para versao HTTPS com proxy /api
-Copy-Item (Join-Path $RepoRoot "iis\web.config.https") (Join-Path $SitePath "web.config") -Force
+# Troca web.config para proxy HTTP (sem redirect HTTPS ate certificado existir)
+Copy-Item (Join-Path $RepoRoot "iis\web.config.http-proxy") (Join-Path $SitePath "web.config") -Force
 
 Import-Module WebAdministration
 
@@ -64,15 +64,31 @@ Write-Host ""
 Write-Host '==> Emitindo certificado SSL (Lets Encrypt)'
 Write-Host "    Isso pode abrir uma janela ou pedir confirmacao..."
 
-& $WacsExe `
-    --target iis `
-    --siteid $siteId `
-    --host $Domain `
-    --installation iis `
-    --installationsiteid $siteId `
-    --emailaddress $Email `
-    --accepttos `
-    --verbose
+$wacsOk = $false
+$prev = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $WacsExe `
+        --target iis `
+        --siteid $siteId `
+        --host $Domain `
+        --installation iis `
+        --installationsiteid $siteId `
+        --emailaddress $Email `
+        --accepttos `
+        --verbose
+    if ($LASTEXITCODE -eq 0) { $wacsOk = $true }
+} finally {
+    $ErrorActionPreference = $prev
+}
+
+if ($wacsOk) {
+    Write-Host "==> Certificado OK - ativando redirect HTTPS"
+    Copy-Item (Join-Path $RepoRoot "iis\web.config.https") (Join-Path $SitePath "web.config") -Force
+} else {
+    Write-Host "AVISO: win-acme falhou. Frontend continua em HTTP com proxy /api" -ForegroundColor Yellow
+    Write-Host "       Rode manualmente: C:\Tools\win-acme\wacs.exe"
+}
 
 Write-Host ""
 Write-Host "==> Reiniciando IIS"
