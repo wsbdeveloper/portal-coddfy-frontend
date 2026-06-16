@@ -14,7 +14,73 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $WacsDir = "C:\Tools\win-acme"
 $WacsZip = Join-Path $WacsDir "win-acme.zip"
 $WacsExe = Join-Path $WacsDir "wacs.exe"
-$WacsUrl = "https://github.com/win-acme/win-acme/releases/download/v2.2.9.5/win-acme.v2.2.9.5.x64.pluggable.zip"
+$WacsFallbackUrl = "https://github.com/win-acme/win-acme/releases/download/v2.2.9.1701/win-acme.v2.2.9.1701.x64.pluggable.zip"
+
+function Enable-Tls12 {
+    $protocols = [Net.SecurityProtocolType]::Tls12
+    if ([Enum]::IsDefined([Net.SecurityProtocolType], 'Tls13')) {
+        $protocols = $protocols -bor [Net.SecurityProtocolType]::Tls13
+    }
+    [Net.ServicePointManager]::SecurityProtocol = $protocols
+}
+
+function Get-WinAcmeDownloadUrl {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        Enable-Tls12
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/win-acme/win-acme/releases/latest" `
+            -Headers @{ "User-Agent" = "coddfy-setup-ssl" } `
+            -TimeoutSec 30
+        $asset = $release.assets | Where-Object { $_.name -like "win-acme.*.x64.pluggable.zip" } | Select-Object -First 1
+        if ($asset.browser_download_url) {
+            return $asset.browser_download_url
+        }
+    } catch {
+        Write-Host "    AVISO: nao foi possivel consultar GitHub API - $($_.Exception.Message)" -ForegroundColor Yellow
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    return $WacsFallbackUrl
+}
+
+function Install-WinAcme {
+    New-Item -ItemType Directory -Force -Path $WacsDir | Out-Null
+    if (Test-Path $WacsExe) { return }
+
+    $url = Get-WinAcmeDownloadUrl
+    Write-Host "    URL: $url"
+
+    Enable-Tls12
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Stop"
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $WacsZip -UseBasicParsing `
+            -Headers @{ "User-Agent" = "coddfy-setup-ssl" }
+    } catch {
+        throw @"
+Falha ao baixar win-acme: $($_.Exception.Message)
+
+Baixe manualmente no servidor:
+  1. Abra no navegador: https://github.com/win-acme/win-acme/releases/latest
+  2. Baixe 'win-acme.*.x64.pluggable.zip'
+  3. Extraia para C:\Tools\win-acme\
+  4. Rode este script de novo com -SkipRebuild
+"@
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+
+    Expand-Archive -Path $WacsZip -DestinationPath $WacsDir -Force
+    Remove-Item $WacsZip -Force -ErrorAction SilentlyContinue
+    $extracted = Get-ChildItem -Path $WacsDir -Filter "wacs.exe" -Recurse | Select-Object -First 1
+    if (-not $extracted) {
+        throw "wacs.exe nao encontrado apos extrair $WacsZip"
+    }
+    Copy-Item $extracted.FullName $WacsExe -Force
+}
 
 function Get-VmPublicIp {
     $prev = $ErrorActionPreference
@@ -167,13 +233,7 @@ Start-Website -Name $SiteName
 
 Write-Host ""
 Write-Host '==> Baixando win-acme (Lets Encrypt)'
-New-Item -ItemType Directory -Force -Path $WacsDir | Out-Null
-if (-not (Test-Path $WacsExe)) {
-    Invoke-WebRequest -Uri $WacsUrl -OutFile $WacsZip -UseBasicParsing
-    Expand-Archive -Path $WacsZip -DestinationPath $WacsDir -Force
-    $extracted = Get-ChildItem -Path $WacsDir -Filter "wacs.exe" -Recurse | Select-Object -First 1
-    if ($extracted) { Copy-Item $extracted.FullName $WacsExe -Force }
-}
+Install-WinAcme
 
 $siteId = (Get-Website -Name $SiteName).Id
 
