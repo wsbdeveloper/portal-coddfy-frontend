@@ -231,7 +231,7 @@ if ($vmIp) {
 
     $dnsOk = ($publicDnsIp -eq $vmIp)
     if ($dnsOk) {
-        Write-Host "    DNS publico OK: Let's Encrypt vai validar nesta VM"
+        Write-Host '    DNS publico OK: Lets Encrypt vai validar nesta VM'
     } else {
         Write-Host "    AVISO: DNS publico nao aponta para esta VM (esperado: $vmIp)" -ForegroundColor Yellow
     }
@@ -264,7 +264,7 @@ if (-not $SkipProxyCheck) {
     }
 
     if ($publicDnsIp -eq $vmIp -and $domainTest.Server -like "*nginx*") {
-        Write-Host "    DNS publico OK + IIS local OK — seguindo apesar do DNS interno (LocalWeb)." -ForegroundColor Green
+        Write-Host '    DNS publico OK + IIS local OK - seguindo apesar do DNS interno (LocalWeb).' -ForegroundColor Green
     }
 } else {
     Write-Host "    Pulando validacao de proxy (-SkipProxyCheck)" -ForegroundColor Yellow
@@ -360,6 +360,6 @@ Write-Host "  https://$Domain"
 Write-Host "  https://$Domain/api/health"
 Write-Host ""
 Write-Host "Backend (se ainda nao fez):"
-Write-Host "  cd coddfy && git pull && docker-compose up -d"
+Write-Host '  cd coddfy; git pull; docker compose up -d'
 Write-Host "  CORS_ORIGINS ja inclui https://$Domain"
 Write-Host "================================================================"
