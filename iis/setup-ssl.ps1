@@ -64,11 +64,33 @@ function Test-HttpResponse {
     }
 }
 
+function Stop-IisWebsiteSafe {
+    param([string]$Name)
+
+    $site = Get-Website -Name $Name -ErrorAction SilentlyContinue
+    if (-not $site -or $site.State -ne "Started") { return }
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        Stop-Website -Name $Name
+        Write-Host "    Site parado: $Name"
+    } catch {
+        Write-Host "    AVISO: nao foi possivel parar '$Name'" -ForegroundColor Yellow
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 function Clear-StaleBindings {
     param([string]$SiteName, [string]$KeepDomain)
 
     Import-Module WebAdministration -ErrorAction SilentlyContinue
-    Stop-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
+
+    foreach ($site in Get-Website) {
+        if ($site.Name -eq $SiteName) { continue }
+        Stop-IisWebsiteSafe -Name $site.Name
+    }
 
     Get-WebBinding -Name $SiteName -ErrorAction SilentlyContinue | ForEach-Object {
         $binding = $_
