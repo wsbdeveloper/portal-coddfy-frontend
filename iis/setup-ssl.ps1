@@ -2,7 +2,8 @@
 param(
     [string]$Domain = "portal.coddfy.com.br",
     [string]$Email = "admin@coddfy.com",
-    [switch]$SkipRebuild
+    [switch]$SkipRebuild,
+    [switch]$SkipProxyCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -118,13 +119,46 @@ function Test-DomainPointsToVm {
     return ($resolved.IPAddressToString -eq $ExpectedIp)
 }
 
-function Test-HttpResponse {
-    param([string]$Url)
+function Get-PublicDnsIp {
+    param([string]$HostName)
 
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
     try {
-        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 10 -MaximumRedirection 0
+        $records = Resolve-DnsName -Name $HostName -Type A -Server 8.8.8.8 -DnsOnly
+        $a = $records | Where-Object { $_.QueryType -eq "A" -or $_.Type -eq "A" } | Select-Object -First 1
+        if ($a.IPAddress) { return $a.IPAddress }
+    } catch {
+        try {
+            $records = Resolve-DnsName -Name $HostName -Type A -Server 1.1.1.1 -DnsOnly
+            $a = $records | Where-Object { $_.QueryType -eq "A" -or $_.Type -eq "A" } | Select-Object -First 1
+            if ($a.IPAddress) { return $a.IPAddress }
+        } catch { }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    return $null
+}
+
+function Test-HttpResponse {
+    param(
+        [string]$Url,
+        [string]$HostHeader
+    )
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        $params = @{
+            Uri = $Url
+            UseBasicParsing = $true
+            TimeoutSec = 10
+            MaximumRedirection = 0
+        }
+        if ($HostHeader) {
+            $params.Headers = @{ Host = $HostHeader }
+        }
+        $r = Invoke-WebRequest @params
         return @{ Ok = $true; Status = $r.StatusCode; Server = $r.Headers["Server"] }
     } catch {
         if ($_.Exception.Response) {
@@ -184,27 +218,56 @@ Write-Host " SSL HTTPS - $Domain"
 Write-Host "================================================================"
 
 $vmIp = Get-VmPublicIp
+$publicDnsIp = Get-PublicDnsIp -HostName $Domain
+$localDnsIp = ([System.Net.Dns]::GetHostAddresses($Domain) |
+    Where-Object { $_.AddressFamily -eq "InterNetwork" } |
+    Select-Object -First 1).IPAddressToString
+
 if ($vmIp) {
     Write-Host ""
     Write-Host "==> IP publico desta VM: $vmIp"
-    $dnsOk = Test-DomainPointsToVm -HostName $Domain -ExpectedIp $vmIp
+    Write-Host "    DNS publico (8.8.8.8): $publicDnsIp"
+    Write-Host "    DNS local (servidor):   $localDnsIp"
+
+    $dnsOk = ($publicDnsIp -eq $vmIp)
     if ($dnsOk) {
-        Write-Host "    DNS OK: $Domain aponta para esta VM"
+        Write-Host "    DNS publico OK: Let's Encrypt vai validar nesta VM"
     } else {
-        $resolved = ([System.Net.Dns]::GetHostAddresses($Domain) | Select-Object -First 1).IPAddressToString
-        Write-Host "    AVISO: $Domain resolve para $resolved (esperado: $vmIp)" -ForegroundColor Yellow
-        Write-Host "    Ajuste o DNS na LocalWeb ANTES do SSL (registro A direto na VM)." -ForegroundColor Yellow
-        Write-Host "    Se o dominio passar pelo proxy LocalWeb, o Let's Encrypt vai falhar." -ForegroundColor Yellow
+        Write-Host "    AVISO: DNS publico nao aponta para esta VM (esperado: $vmIp)" -ForegroundColor Yellow
     }
 }
 
 $domainTest = Test-HttpResponse -Url "http://$Domain/"
+$iisTarget = if ($vmIp) { "http://$vmIp/" } else { "http://127.0.0.1/" }
+$iisTest = Test-HttpResponse -Url $iisTarget -HostHeader $Domain
+
 Write-Host ""
-Write-Host "==> Teste HTTP externo: http://$Domain/ -> $($domainTest.Status) ($($domainTest.Server))"
-if ($domainTest.Server -like "*nginx*") {
-    Write-Host "    ERRO: dominio ainda passa pelo nginx da LocalWeb (302/proxy)." -ForegroundColor Red
-    Write-Host "    Corrija o DNS/proxy na LocalWeb e rode este script de novo." -ForegroundColor Red
-    throw "DNS/proxy LocalWeb bloqueia emissao do certificado."
+Write-Host "==> Teste pelo nome (DNS local): http://$Domain/ -> $($domainTest.Status) ($($domainTest.Server))"
+Write-Host "==> Teste IIS (IP + Host): $iisTarget Host:$Domain -> $($iisTest.Status) ($($iisTest.Server))"
+
+if ($domainTest.Server -like "*nginx*" -and $localDnsIp -ne $vmIp) {
+    Write-Host "    AVISO: DNS interno ainda aponta para LocalWeb/nginx" -ForegroundColor Yellow
+    Write-Host "    Isso e comum em split-DNS; o que importa e o DNS publico." -ForegroundColor Yellow
+}
+
+if (-not $SkipProxyCheck) {
+    if ($vmIp -and $publicDnsIp -ne $vmIp) {
+        Write-Host "    ERRO: DNS publico nao aponta para esta VM." -ForegroundColor Red
+        Write-Host "    Ajuste o registro A na LocalWeb para $vmIp" -ForegroundColor Red
+        throw "DNS publico incorreto para emissao do certificado."
+    }
+
+    if ($iisTest.Status -ne 200 -or ($iisTest.Server -and $iisTest.Server -notlike "*IIS*")) {
+        Write-Host "    ERRO: IIS nao responde para $Domain nesta VM." -ForegroundColor Red
+        Write-Host "    Verifique site CoddfyPortal e binding *:80:$Domain" -ForegroundColor Red
+        throw "IIS nao esta servindo o dominio nesta VM."
+    }
+
+    if ($publicDnsIp -eq $vmIp -and $domainTest.Server -like "*nginx*") {
+        Write-Host "    DNS publico OK + IIS local OK — seguindo apesar do DNS interno (LocalWeb)." -ForegroundColor Green
+    }
+} else {
+    Write-Host "    Pulando validacao de proxy (-SkipProxyCheck)" -ForegroundColor Yellow
 }
 
 & (Join-Path $PSScriptRoot "install-iis-modules.ps1")
