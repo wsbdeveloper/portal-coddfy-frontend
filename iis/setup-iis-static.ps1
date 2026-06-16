@@ -228,7 +228,8 @@ Write-Host ""
 Write-Host "OK - Frontend publicado no IIS porta 80"
 Write-Host "URL: http://$displayHost"
 if ($ApiUrl -eq "/api") {
-    Write-Host "API: https://$displayHost/api (via proxy IIS)"
+    Write-Host 'API: https://' -NoNewline
+    Write-Host "$displayHost/api via proxy IIS"
 } else {
     Write-Host "API: http://${displayHost}:6543/api"
 }

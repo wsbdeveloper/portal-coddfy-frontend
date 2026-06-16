@@ -32,7 +32,7 @@ if (-not $hasDomainBinding) {
 if (-not $KeepIpBinding) {
     $generic = $hostBindings | Where-Object { $_.bindingInformation -eq "*:80:" }
     if ($generic) {
-        Write-Host "==> Removendo binding generico *:80: (acesso so pelo subdominio)"
+        Write-Host '==> Removendo binding generico *:80: - acesso so pelo subdominio'
         Remove-WebBinding -Name $SiteName -BindingInformation "*:80:" -Protocol "http"
     }
 }

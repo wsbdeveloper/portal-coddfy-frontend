@@ -24,7 +24,7 @@ Write-Host "================================================================"
 & (Join-Path $PSScriptRoot "open-firewall.ps1")
 
 Write-Host ""
-Write-Host "==> Publicando frontend com API em /api (mesmo dominio, sem mixed content)"
+Write-Host '==> Publicando frontend com API em /api - mesmo dominio, sem mixed content'
 & (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild -PublicHost $Domain -ApiUrl "/api"
 
 # Troca web.config para versao HTTPS com proxy /api
@@ -46,7 +46,7 @@ if (-not ($httpBindings | Where-Object { $_.bindingInformation -eq "*:80:$Domain
 }
 
 Write-Host ""
-Write-Host "==> Baixando win-acme (Let's Encrypt)"
+Write-Host '==> Baixando win-acme (Lets Encrypt)'
 New-Item -ItemType Directory -Force -Path $WacsDir | Out-Null
 if (-not (Test-Path $WacsExe)) {
     Invoke-WebRequest -Uri $WacsUrl -OutFile $WacsZip -UseBasicParsing
@@ -61,7 +61,7 @@ $site = Get-Website -Name $SiteName
 $siteId = $site.Id
 
 Write-Host ""
-Write-Host "==> Emitindo certificado SSL (Let's Encrypt)"
+Write-Host '==> Emitindo certificado SSL (Lets Encrypt)'
 Write-Host "    Isso pode abrir uma janela ou pedir confirmacao..."
 
 & $WacsExe `
