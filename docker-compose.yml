@@ -1,0 +1,18 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: ccm_frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - coddfy_network
+
+networks:
+  coddfy_network:
+    external: true
+    name: coddfy_network
