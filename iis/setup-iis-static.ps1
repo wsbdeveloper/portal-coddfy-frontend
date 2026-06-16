@@ -6,7 +6,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $SiteName = "CoddfyPortal"
-$DefaultSiteName = "Default Web Site"
 $SitePath = "C:\inetpub\coddfy-portal"
 $Port = 80
 
@@ -42,6 +41,55 @@ function Remove-DockerContainer {
     }
 }
 
+function Test-IisWebsite {
+    param([string]$Name)
+    return [bool](Get-Website -Name $Name -ErrorAction SilentlyContinue)
+}
+
+function Stop-IisWebsiteSafe {
+    param([string]$Name)
+
+    $site = Get-Website -Name $Name -ErrorAction SilentlyContinue
+    if ($site -and $site.State -eq "Started") {
+        Stop-Website -Name $Name
+        Write-Host "    Site '$Name' parado"
+    }
+}
+
+function Remove-IisHttpBinding {
+    param(
+        [string]$SiteName,
+        [int]$Port = 80
+    )
+
+    if (-not (Test-IisWebsite $SiteName)) { return }
+
+    $bindings = Get-WebBinding -Name $SiteName -ErrorAction SilentlyContinue | Where-Object {
+        $_.protocol -eq "http" -and $_.bindingInformation -match ":$Port`:"
+    }
+
+    foreach ($binding in $bindings) {
+        Write-Host "    Removendo $($binding.bindingInformation) de '$SiteName'"
+        $prev = $ErrorActionPreference
+        $ErrorActionPreference = "SilentlyContinue"
+        try {
+            Remove-WebBinding -Name $SiteName -BindingInformation $binding.bindingInformation -Protocol $binding.protocol
+        } finally {
+            $ErrorActionPreference = $prev
+        }
+    }
+}
+
+function Clear-Port80Except {
+    param([string]$KeepSiteName)
+
+    foreach ($site in Get-Website) {
+        if ($site.Name -eq $KeepSiteName) { continue }
+        Stop-IisWebsiteSafe -Name $site.Name
+        Remove-IisHttpBinding -SiteName $site.Name -Port 80
+    }
+}
+
 Write-Host "==> Parando container Docker frontend (se existir)"
 Remove-DockerContainer "ccm_frontend"
 
@@ -72,20 +120,8 @@ Copy-Item -Path $WebConfigSource -Destination (Join-Path $SitePath "web.config")
 
 Import-Module WebAdministration
 
-Write-Host "==> Parando Default Web Site e liberando porta 80"
-Stop-Website -Name $DefaultSiteName -ErrorAction SilentlyContinue
-Remove-WebBinding -Name $DefaultSiteName -BindingInformation "*:80:" -Protocol "http" -ErrorAction SilentlyContinue
-
-Get-Website | ForEach-Object {
-    $otherSite = $_.Name
-    if ($otherSite -eq $SiteName) { return }
-    Get-WebBinding -Name $otherSite | Where-Object {
-        $_.protocol -eq "http" -and $_.bindingInformation -match ":$Port`:"
-    } | ForEach-Object {
-        Write-Host "    Removendo $($_.bindingInformation) de '$otherSite'"
-        Remove-WebBinding -Name $otherSite -BindingInformation $_.bindingInformation -Protocol $_.protocol
-    }
-}
+Write-Host "==> Liberando porta 80 dos outros sites"
+Clear-Port80Except -KeepSiteName $SiteName
 
 $site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
 if ($site) {
@@ -96,7 +132,19 @@ if ($site) {
     New-Website -Name $SiteName -PhysicalPath $SitePath -Port $Port | Out-Null
 }
 
-Start-Website -Name $SiteName
+$coddfyBindings = Get-WebBinding -Name $SiteName -ErrorAction SilentlyContinue | Where-Object {
+    $_.protocol -eq "http" -and $_.bindingInformation -match ":$Port`:"
+}
+if (-not $coddfyBindings) {
+    Write-Host "==> Adicionando binding *:80: ao site $SiteName"
+    New-WebBinding -Name $SiteName -Protocol "http" -Port $Port -IPAddress "*"
+}
+
+if (Test-IisWebsite $SiteName) {
+    Start-Website -Name $SiteName
+} else {
+    throw "Falha ao criar site IIS '$SiteName'"
+}
 
 $serverIp = Get-ServerIp
 Write-Host ""
