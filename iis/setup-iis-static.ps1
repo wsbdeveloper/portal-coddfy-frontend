@@ -1,4 +1,8 @@
 #Requires -RunAsAdministrator
+param(
+    [switch]$ForceRebuild
+)
+
 $ErrorActionPreference = "Stop"
 
 $SiteName = "CoddfyPortal"
@@ -22,10 +26,14 @@ function Get-ServerIp {
     return "localhost"
 }
 
+Write-Host "==> Parando container Docker frontend (se existir)"
+docker rm -f ccm_frontend 2>$null | Out-Null
+
 Write-Host "==> Criando pasta: $SitePath"
 New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
 
-if (-not (Test-Path (Join-Path $SitePath "index.html"))) {
+$needsBuild = $ForceRebuild -or -not (Test-Path (Join-Path $SitePath "index.html"))
+if ($needsBuild) {
     $serverIp = Get-ServerIp
     $apiUrl = "http://${serverIp}:6543/api"
     Write-Host "==> Gerando build estatico (API: $apiUrl)"
@@ -35,6 +43,7 @@ if (-not (Test-Path (Join-Path $SitePath "index.html"))) {
         docker build --build-arg VITE_API_URL=$apiUrl -t coddfy-frontend-static .
         docker rm -f coddfy_fe_extract 2>$null | Out-Null
         docker create --name coddfy_fe_extract coddfy-frontend-static | Out-Null
+        Get-ChildItem -Path $SitePath -Force | Remove-Item -Recurse -Force
         docker cp coddfy_fe_extract:/usr/share/nginx/html/. $SitePath
         docker rm -f coddfy_fe_extract | Out-Null
     } finally {
@@ -73,10 +82,11 @@ if ($site) {
 
 Start-Website -Name $SiteName
 
+$serverIp = Get-ServerIp
 Write-Host ""
-Write-Host "OK - Frontend no IIS porta 80 (sem ARR)"
-Write-Host "API direta em: http://$(Get-ServerIp):6543/api"
+Write-Host "OK - Frontend publicado no IIS porta 80"
+Write-Host "URL: http://$serverIp"
+Write-Host "API: http://${serverIp}:6543/api"
 Write-Host ""
-Write-Host "IMPORTANTE: atualize CORS no backend (coddfy/docker-compose.yml):"
-Write-Host "  CORS_ORIGINS=http://localhost,http://$(Get-ServerIp)"
-Write-Host "Depois: cd coddfy && docker-compose up -d"
+Write-Host "CORS no backend (coddfy/docker-compose.yml):"
+Write-Host "  CORS_ORIGINS=http://localhost,http://$serverIp"
