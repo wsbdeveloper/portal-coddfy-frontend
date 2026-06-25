@@ -1,0 +1,7 @@
+{
+    email admin@coddfy.com
+}
+
+portal.coddfy.com.br {
+    reverse_proxy ccm_frontend:80
+}

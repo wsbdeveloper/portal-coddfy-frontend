@@ -1,4 +1,4 @@
-# Frontend em producao - nginx na porta 80 com proxy /api
+# Producao: Caddy (80/443 + SSL automatico) -> nginx frontend -> backend
 services:
   frontend:
     build:
@@ -8,11 +8,32 @@ services:
         VITE_API_URL: /api
     image: coddfy-frontend-prod
     container_name: ccm_frontend
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     restart: unless-stopped
     networks:
       - coddfy_network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ccm_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    networks:
+      - coddfy_network
+
+volumes:
+  caddy_data:
+  caddy_config:
 
 networks:
   coddfy_network:

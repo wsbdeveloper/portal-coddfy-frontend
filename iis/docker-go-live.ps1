@@ -59,7 +59,7 @@ Stop-IisOnPort80
 Push-Location $RepoRoot
 try {
     Write-Host ""
-    Write-Host "==> Build e subida do frontend (nginx:80 -> ccm_backend:6543)"
+    Write-Host "==> Build e subida (Caddy :80/:443 -> frontend -> backend)"
     docker compose -f docker-compose.prod.yml up -d --build
 
     Write-Host ""
@@ -88,6 +88,6 @@ Write-Host ""
 Write-Host "Portal: http://$PublicHost"
 Write-Host "Login:  admin / admin123"
 Write-Host ""
-Write-Host "Azure NSG: porta 80 aberta. Porta 6543 pode ficar fechada (API via /api)."
-Write-Host "SSL depois: proxy reverso ou win-acme no nginx (futuro)."
+Write-Host "Azure NSG: portas 80 e 443 abertas."
+Write-Host "SSL: powershell -File .\iis\setup-ssl-docker.ps1 -Domain $PublicHost"
 Write-Host "================================================================"
