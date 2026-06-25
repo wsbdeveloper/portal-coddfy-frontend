@@ -119,25 +119,45 @@ function Test-DomainPointsToVm {
     return ($resolved.IPAddressToString -eq $ExpectedIp)
 }
 
-function Get-PublicDnsIp {
-    param([string]$HostName)
+function Resolve-DnsAFromServer {
+    param(
+        [string]$HostName,
+        [string]$DnsServer
+    )
 
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
     try {
-        $records = Resolve-DnsName -Name $HostName -Type A -Server 8.8.8.8 -DnsOnly
+        $records = Resolve-DnsName -Name $HostName -Type A -Server $DnsServer -DnsOnly
         $a = $records | Where-Object { $_.QueryType -eq "A" -or $_.Type -eq "A" } | Select-Object -First 1
         if ($a.IPAddress) { return $a.IPAddress }
-    } catch {
-        try {
-            $records = Resolve-DnsName -Name $HostName -Type A -Server 1.1.1.1 -DnsOnly
-            $a = $records | Where-Object { $_.QueryType -eq "A" -or $_.Type -eq "A" } | Select-Object -First 1
-            if ($a.IPAddress) { return $a.IPAddress }
-        } catch { }
     } finally {
         $ErrorActionPreference = $prev
     }
     return $null
+}
+
+function Get-DnsCheckResults {
+    param([string]$HostName)
+
+    $checks = @(
+        @{ Label = "Google 8.8.8.8"; Server = "8.8.8.8" },
+        @{ Label = "Cloudflare 1.1.1.1"; Server = "1.1.1.1" },
+        @{ Label = "Locaweb ns1"; Server = "ns1.locaweb.com.br" },
+        @{ Label = "Locaweb ns2"; Server = "ns2.locaweb.com.br" },
+        @{ Label = "Locaweb ns3"; Server = "ns3.locaweb.com.br" }
+    )
+
+    $results = @()
+    foreach ($check in $checks) {
+        $ip = Resolve-DnsAFromServer -HostName $HostName -DnsServer $check.Server
+        $results += [PSCustomObject]@{
+            Label = $check.Label
+            Server = $check.Server
+            Ip = $ip
+        }
+    }
+    return $results
 }
 
 function Test-HttpResponse {
@@ -218,7 +238,10 @@ Write-Host " SSL HTTPS - $Domain"
 Write-Host "================================================================"
 
 $vmIp = Get-VmPublicIp
-$publicDnsIp = Get-PublicDnsIp -HostName $Domain
+$dnsChecks = Get-DnsCheckResults -HostName $Domain
+$publicDnsIp = ($dnsChecks | Where-Object { $_.Server -in @("8.8.8.8", "1.1.1.1") -and $_.Ip } | Select-Object -First 1).Ip
+$authoritativeDnsIp = ($dnsChecks | Where-Object { $_.Server -like "ns*.locaweb.com.br" -and $_.Ip } | Select-Object -First 1).Ip
+$effectiveDnsIp = if ($publicDnsIp) { $publicDnsIp } else { $authoritativeDnsIp }
 $localDnsIp = ([System.Net.Dns]::GetHostAddresses($Domain) |
     Where-Object { $_.AddressFamily -eq "InterNetwork" } |
     Select-Object -First 1).IPAddressToString
@@ -226,14 +249,19 @@ $localDnsIp = ([System.Net.Dns]::GetHostAddresses($Domain) |
 if ($vmIp) {
     Write-Host ""
     Write-Host "==> IP publico desta VM: $vmIp"
-    Write-Host "    DNS publico (8.8.8.8): $publicDnsIp"
+    foreach ($check in $dnsChecks) {
+        $value = if ($check.Ip) { $check.Ip } else { "(sem registro A)" }
+        Write-Host ("    DNS {0}: {1}" -f $check.Label, $value)
+    }
     Write-Host "    DNS local (servidor):   $localDnsIp"
 
-    $dnsOk = ($publicDnsIp -eq $vmIp)
-    if ($dnsOk) {
-        Write-Host '    DNS publico OK: Lets Encrypt vai validar nesta VM'
+    $dnsOk = ($effectiveDnsIp -eq $vmIp)
+    if ($dnsOk -and -not $publicDnsIp) {
+        Write-Host '    DNS autoritativo OK; Google/Cloudflare ainda propagando.' -ForegroundColor Yellow
+    } elseif ($dnsOk) {
+        Write-Host '    DNS OK: Lets Encrypt vai validar nesta VM'
     } else {
-        Write-Host "    AVISO: DNS publico nao aponta para esta VM (esperado: $vmIp)" -ForegroundColor Yellow
+        Write-Host "    AVISO: DNS nao aponta para esta VM (esperado: $vmIp)" -ForegroundColor Yellow
     }
 }
 
@@ -251,8 +279,8 @@ if ($domainTest.Server -like "*nginx*" -and $localDnsIp -ne $vmIp) {
 }
 
 if (-not $SkipProxyCheck) {
-    if (-not $publicDnsIp) {
-        Write-Host "    ERRO: nao existe registro A publico para $Domain" -ForegroundColor Red
+    if (-not $effectiveDnsIp) {
+        Write-Host "    ERRO: nao existe registro A para $Domain" -ForegroundColor Red
         Write-Host "    O Lets Encrypt nao consegue validar sem esse registro." -ForegroundColor Red
         Write-Host ""
         Write-Host "    No painel Locaweb (DNS de coddfy.com.br), crie:" -ForegroundColor Yellow
@@ -260,15 +288,20 @@ if (-not $SkipProxyCheck) {
         Write-Host "      Nome:  portal" -ForegroundColor Yellow
         Write-Host "      Valor: $vmIp" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "    Aguarde propagacao (5-30 min) e teste:" -ForegroundColor Yellow
+        Write-Host "    Teste:" -ForegroundColor Yellow
+        Write-Host "      nslookup $Domain ns1.locaweb.com.br" -ForegroundColor Yellow
         Write-Host "      nslookup $Domain 8.8.8.8" -ForegroundColor Yellow
-        throw "Registro A ausente no DNS publico."
+        throw "Registro A ausente no DNS."
     }
 
-    if ($vmIp -and $publicDnsIp -ne $vmIp) {
-        Write-Host "    ERRO: DNS publico nao aponta para esta VM." -ForegroundColor Red
+    if ($vmIp -and $effectiveDnsIp -ne $vmIp) {
+        Write-Host "    ERRO: DNS nao aponta para esta VM." -ForegroundColor Red
         Write-Host "    Ajuste o registro A na LocalWeb para $vmIp" -ForegroundColor Red
-        throw "DNS publico incorreto para emissao do certificado."
+        throw "DNS incorreto para emissao do certificado."
+    }
+
+    if (-not $publicDnsIp -and $authoritativeDnsIp -eq $vmIp) {
+        Write-Host '    DNS autoritativo Locaweb OK; seguindo apesar da propagacao em 8.8.8.8.' -ForegroundColor Green
     }
 
     if ($iisTest.Status -ne 200 -or ($iisTest.Server -and $iisTest.Server -notlike "*IIS*")) {
@@ -277,8 +310,8 @@ if (-not $SkipProxyCheck) {
         throw "IIS nao esta servindo o dominio nesta VM."
     }
 
-    if ($publicDnsIp -eq $vmIp -and $domainTest.Server -like "*nginx*") {
-        Write-Host '    DNS publico OK + IIS local OK - seguindo apesar do DNS interno (LocalWeb).' -ForegroundColor Green
+    if ($effectiveDnsIp -eq $vmIp -and $domainTest.Server -like "*nginx*") {
+        Write-Host '    DNS OK + IIS local OK - seguindo apesar do DNS interno (LocalWeb).' -ForegroundColor Green
     }
 } else {
     Write-Host "    Pulando validacao de proxy (-SkipProxyCheck)" -ForegroundColor Yellow
