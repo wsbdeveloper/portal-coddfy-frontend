@@ -19,7 +19,8 @@ try {
 }
 
 & (Join-Path $PSScriptRoot "open-firewall.ps1")
-& (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild -PublicHost $PublicHost
+& (Join-Path $PSScriptRoot "install-iis-modules.ps1")
+& (Join-Path $PSScriptRoot "setup-iis-static.ps1") -ForceRebuild -PublicHost $PublicHost -ApiUrl "/api"
 
 Write-Host ""
 Write-Host "==> Reiniciando IIS"

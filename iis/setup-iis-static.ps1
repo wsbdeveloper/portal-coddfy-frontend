@@ -12,7 +12,8 @@ $SitePath = "C:\inetpub\coddfy-portal"
 $Port = 80
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$WebConfigSource = Join-Path $RepoRoot "iis\web.config.static"
+$WebConfigStatic = Join-Path $RepoRoot "iis\web.config.static"
+$WebConfigProxy = Join-Path $RepoRoot "iis\web.config.http-proxy"
 
 function Get-ServerPrivateIp {
     $ip = Get-NetIPAddress -AddressFamily IPv4 |
@@ -192,8 +193,13 @@ if ($needsBuild) {
     }
 }
 
-Write-Host "==> Copiando web.config (SPA, sem proxy ARR)"
-Copy-Item -Path $WebConfigSource -Destination (Join-Path $SitePath "web.config") -Force
+if ($ApiUrl -eq "/api") {
+    Write-Host "==> Copiando web.config (SPA + proxy /api -> backend:6543)"
+    Copy-Item -Path $WebConfigProxy -Destination (Join-Path $SitePath "web.config") -Force
+} else {
+    Write-Host "==> Copiando web.config (SPA, sem proxy ARR)"
+    Copy-Item -Path $WebConfigStatic -Destination (Join-Path $SitePath "web.config") -Force
+}
 
 Import-Module WebAdministration
 
@@ -228,15 +234,13 @@ Write-Host ""
 Write-Host "OK - Frontend publicado no IIS porta 80"
 Write-Host "URL: http://$displayHost"
 if ($ApiUrl -eq "/api") {
-    Write-Host 'API: https://' -NoNewline
-    Write-Host "$displayHost/api via proxy IIS"
+    Write-Host "API: http://$displayHost/api via proxy IIS (porta 80)"
 } else {
     Write-Host "API: http://${displayHost}:6543/api"
 }
 Write-Host ""
 Write-Host "CORS no backend (coddfy/docker-compose.yml):"
-Write-Host "  CORS_ORIGINS=http://localhost,http://$displayHost"
+Write-Host "  CORS_ORIGINS=http://localhost,http://$displayHost,http://20.197.240.231"
 Write-Host ""
 Write-Host "Firewall:"
-Write-Host "  powershell -ExecutionPolicy Bypass -File .\iis\open-firewall.ps1"
-Write-Host "  Azure Portal -> VM -> Networking -> Add inbound rule (80, 6543)"
+Write-Host "  Azure Portal -> VM -> Networking -> portas 80 (portal; API via /api)"
