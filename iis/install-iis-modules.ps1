@@ -30,11 +30,20 @@ if (-not (Test-IisModule "ApplicationRequestRouting")) {
     Write-Host "==> ARR ja instalado"
 }
 
+$needsReset = $false
+if (-not (Test-IisModule "RewriteModule")) { $needsReset = $true }
+if (-not (Test-IisModule "ApplicationRequestRouting")) { $needsReset = $true }
+
 Import-Module WebAdministration -ErrorAction SilentlyContinue
 if (Test-IisModule "ApplicationRequestRouting") {
     Write-Host "==> Habilitando proxy no ARR"
     Set-WebConfigurationProperty -PSPath "MACHINE/WEBROOT/APPHOST" -Filter "system.webServer/proxy" -Name "enabled" -Value "True"
 }
 
+if ($needsReset) {
+    Write-Host "==> Reiniciando IIS (primeira instalacao dos modulos)"
+    iisreset /noforce | Out-Null
+}
+
 Write-Host ""
-Write-Host "OK. Reinicie o IIS se for a primeira instalacao: iisreset"
+Write-Host "OK. Modulos IIS prontos."
