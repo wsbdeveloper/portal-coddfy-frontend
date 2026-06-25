@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
   <system.webServer>
-    <!-- SPA fallback sem precisar do modulo URL Rewrite -->
-    <httpErrors errorMode="Custom" existingResponse="Replace">
-      <remove statusCode="404" subStatusCode="-1" />
-      <error statusCode="404" path="/index.html" responseMode="ExecuteURL" />
-    </httpErrors>
+  <!-- Nao redirecionar 404 global para index.html - isso quebra /assets/*.js e deixa tela branca -->
+    <staticContent>
+      <remove fileExtension=".js" />
+      <mimeMap fileExtension=".js" mimeType="application/javascript" />
+      <remove fileExtension=".mjs" />
+      <mimeMap fileExtension=".mjs" mimeType="application/javascript" />
+      <remove fileExtension=".css" />
+      <mimeMap fileExtension=".css" mimeType="text/css" />
+      <remove fileExtension=".json" />
+      <mimeMap fileExtension=".json" mimeType="application/json" />
+      <remove fileExtension=".woff" />
+      <mimeMap fileExtension=".woff" mimeType="font/woff" />
+      <remove fileExtension=".woff2" />
+      <mimeMap fileExtension=".woff2" mimeType="font/woff2" />
+    </staticContent>
     <defaultDocument enabled="true">
       <files>
         <clear />
