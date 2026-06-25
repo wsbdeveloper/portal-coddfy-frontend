@@ -160,6 +160,36 @@ function Get-DnsCheckResults {
     return $results
 }
 
+function Test-LetsEncryptDnsReady {
+    param(
+        [string]$HostName,
+        [string]$ExpectedIp
+    )
+
+    $publicServers = @(
+        @{ Label = "Google 8.8.8.8"; Server = "8.8.8.8" },
+        @{ Label = "Cloudflare 1.1.1.1"; Server = "1.1.1.1" }
+    )
+
+    $missing = @()
+    $wrong = @()
+
+    foreach ($resolver in $publicServers) {
+        $ip = Resolve-DnsAFromServer -HostName $HostName -DnsServer $resolver.Server
+        if (-not $ip) {
+            $missing += $resolver.Label
+        } elseif ($ip -ne $ExpectedIp) {
+            $wrong += "$($resolver.Label)=$ip"
+        }
+    }
+
+    return @{
+        Ready = ($missing.Count -eq 0 -and $wrong.Count -eq 0)
+        Missing = $missing
+        Wrong = $wrong
+    }
+}
+
 function Test-HttpResponse {
     param(
         [string]$Url,
@@ -356,6 +386,26 @@ Write-Host '==> Baixando win-acme (Lets Encrypt)'
 Install-WinAcme
 
 $siteId = (Get-Website -Name $SiteName).Id
+
+Write-Host ""
+Write-Host '==> Verificando propagacao DNS para Lets Encrypt'
+$leDns = Test-LetsEncryptDnsReady -HostName $Domain -ExpectedIp $vmIp
+if (-not $leDns.Ready) {
+    if ($leDns.Missing.Count -gt 0) {
+        Write-Host ("    ERRO: sem registro A em: {0}" -f ($leDns.Missing -join ", ")) -ForegroundColor Red
+    }
+    if ($leDns.Wrong.Count -gt 0) {
+        Write-Host ("    ERRO: IP incorreto em: {0}" -f ($leDns.Wrong -join ", ")) -ForegroundColor Red
+    }
+    Write-Host "    O Lets Encrypt usa resolvers globais; aguarde propagacao completa." -ForegroundColor Yellow
+    Write-Host "    Teste no servidor:" -ForegroundColor Yellow
+    Write-Host "      nslookup $Domain 8.8.8.8" -ForegroundColor Yellow
+    Write-Host "      nslookup $Domain 1.1.1.1" -ForegroundColor Yellow
+    Write-Host "    Ambos devem retornar $vmIp antes de emitir o certificado." -ForegroundColor Yellow
+    throw "DNS publico ainda nao propagou para Lets Encrypt."
+}
+
+Write-Host '    Google e Cloudflare OK - seguro emitir certificado'
 
 Write-Host ""
 Write-Host '==> Emitindo certificado SSL (Lets Encrypt via win-acme)'
