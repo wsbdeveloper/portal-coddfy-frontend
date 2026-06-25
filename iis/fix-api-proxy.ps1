@@ -34,15 +34,18 @@ Write-Host "    RewriteModule: $(if ($hasRewrite) { 'OK' } else { 'AUSENTE' })"
 Write-Host "    ARR:           $(if ($hasArr) { 'OK' } else { 'AUSENTE' })"
 
 if (-not $hasRewrite -or -not $hasArr) {
-    throw @"
-URL Rewrite ou ARR nao instalados.
-
-Instale manualmente e reinicie o IIS:
-  1. URL Rewrite: https://www.iis.net/downloads/microsoft/url-rewrite
-  2. ARR 3.0: https://www.iis.net/downloads/microsoft/application-request-routing
-  3. iisreset /noforce
-Depois rode este script novamente.
-"@
+    Write-Host ""
+    Write-Host "URL Rewrite ou ARR nao instalados." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Opcao rapida (sem instalar modulos):" -ForegroundColor Yellow
+    Write-Host "  powershell -ExecutionPolicy Bypass -File .\iis\go-live-direct.ps1 -PublicHost $Domain"
+    Write-Host ""
+    Write-Host "Ou instale manualmente no servidor:" -ForegroundColor Yellow
+    Write-Host "  1. Baixe e instale URL Rewrite + ARR 3.0"
+    Write-Host "  2. Logs em C:\Tools\coddfy-iis\"
+    Write-Host "  3. iisreset /noforce"
+    Write-Host "  4. Rode este script novamente"
+    exit 1
 }
 
 Write-Host ""
